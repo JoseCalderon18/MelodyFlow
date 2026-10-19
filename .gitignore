@@ -1,0 +1,19 @@
+# .NET build outputs
+**/bin/
+**/obj/
+TestResults/
+
+# Visual Studio and editor state
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local credentials and environment-specific configuration
+.env
+.env.*
+!.env.example
+secrets.json
+appsettings.Local.json
+appsettings.*.local.json

@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="MelodyFlow.Domain/MelodyFlow.Domain.csproj" />
+  <Project Path="MelodyFlow.Application/MelodyFlow.Application.csproj" />
+  <Project Path="MelodyFlow.Infrastructure/MelodyFlow.Infrastructure.csproj" />
+  <Project Path="MelodyFlow.Contracts/MelodyFlow.Contracts.csproj" />
+  <Project Path="MelodyFlow.Worker/MelodyFlow.Worker.csproj" />
+  <Project Path="MelodyFlow.Tests/MelodyFlow.Tests.csproj" />
+  <Project Path="MelodyFlow.WebApp/MelodyFlow.WebApp.csproj" />
+  <Project Path="MelodyFlowAPI/MelodyFlow.API.csproj" />
+</Solution>

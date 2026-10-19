@@ -1,0 +1,39 @@
+@MelodyFlowApiHostAddress = http://localhost:5032
+@projectId = 00000000-0000-0000-0000-000000000001
+@jobId = 00000000-0000-0000-0000-000000000002
+
+### Comprobar que la API alcanza PostgreSQL
+GET {{MelodyFlowApiHostAddress}}/api/health
+Accept: application/json
+
+### Crear un proyecto
+POST {{MelodyFlowApiHostAddress}}/api/v1/projects
+Content-Type: application/json
+
+{
+  "title": "Late Night Lofi",
+  "genre": "Lo-fi",
+  "mood": "Calm",
+  "targetDurationSeconds": 3600
+}
+
+### Crear un trabajo musical (sustituye projectId por el ID anterior)
+POST {{MelodyFlowApiHostAddress}}/api/v1/generation-jobs
+Content-Type: application/json
+Idempotency-Key: local-test-lofi-001
+
+{
+  "musicProjectId": "{{projectId}}",
+  "jobType": "Music",
+  "requestedParameters": {
+    "variationSeed": 12345
+  }
+}
+
+### Consultar un trabajo
+GET {{MelodyFlowApiHostAddress}}/api/v1/generation-jobs/{{jobId}}
+Accept: application/json
+
+### Solicitar cancelación
+POST {{MelodyFlowApiHostAddress}}/api/v1/generation-jobs/{{jobId}}/cancellation
+Accept: application/json

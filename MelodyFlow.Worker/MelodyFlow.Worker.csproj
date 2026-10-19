@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-MelodyFlow.Worker-e6567294-2a3b-4552-9d59-d2c5bcbe33ea</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MelodyFlow.Application\MelodyFlow.Application.csproj" />
+    <ProjectReference Include="..\MelodyFlow.Domain\MelodyFlow.Domain.csproj" />
+    <ProjectReference Include="..\MelodyFlow.Infrastructure\MelodyFlow.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
