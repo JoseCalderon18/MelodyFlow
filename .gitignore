@@ -17,3 +17,6 @@ TestResults/
 secrets.json
 appsettings.Local.json
 appsettings.*.local.json
+
+# Local launch profiles may contain credentials
+**/Properties/launchSettings.json
