@@ -6,11 +6,13 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace MelodyFlow.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
+    /// <summary>Crea las tablas iniciales de proyectos musicales y trabajos de generación.</summary>
     public partial class InitialMusicSchema : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // Los proyectos guardan el brief; los trabajos guardan solicitudes y estados, no archivos multimedia.
             migrationBuilder.CreateTable(
                 name: "music_projects",
                 columns: table => new

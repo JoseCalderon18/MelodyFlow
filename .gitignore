@@ -20,3 +20,12 @@ appsettings.*.local.json
 
 # Local launch profiles may contain credentials
 **/Properties/launchSettings.json
+
+# Local binaries and SoundFonts (keep out of Git)
+/local-dependencies/
+
+# Keep internal project README files local; retain the repository-level README.
+**/README*
+!/README*
+!**/AGENTS*
+!**/VVREADME*

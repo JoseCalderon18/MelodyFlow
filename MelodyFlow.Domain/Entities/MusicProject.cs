@@ -2,6 +2,7 @@ using MelodyFlow.Domain.Enums;
 
 namespace MelodyFlow.Domain.Entities;
 
+/// <summary>Brief de música que define estilo, ambiente y duración para los trabajos del proyecto.</summary>
 public sealed class MusicProject
 {
     private MusicProject()
@@ -26,12 +27,14 @@ public sealed class MusicProject
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    /// <summary>Actualiza el brief y marca el instante del último cambio.</summary>
     public void UpdateDetails(string title, string genre, string? mood, int targetDurationSeconds)
     {
         SetDetails(title, genre, mood, targetDurationSeconds);
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    /// <summary>Cambia el estado del proyecto y rechaza valores que no pertenezcan al enum.</summary>
     public void ChangeStatus(ProjectStatus status)
     {
         if (!Enum.IsDefined(status))
@@ -45,6 +48,7 @@ public sealed class MusicProject
 
     private void SetDetails(string title, string genre, string? mood, int targetDurationSeconds)
     {
+        // El estado válido queda protegido en el dominio aunque otra capa se salte su validación de entrada.
         Title = RequiredText(title, nameof(title), 200);
         Genre = RequiredText(genre, nameof(genre), 80);
         Mood = OptionalText(mood, nameof(mood), 80);

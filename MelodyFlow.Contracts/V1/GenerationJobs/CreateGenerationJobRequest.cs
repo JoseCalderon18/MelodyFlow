@@ -4,6 +4,7 @@ using System.Text.Json;
 
 namespace MelodyFlow.Contracts.V1.GenerationJobs;
 
+/// <summary>Solicitud HTTP para encolar un trabajo con parámetros opcionales en formato JSON.</summary>
 public sealed class CreateGenerationJobRequest : IValidatableObject
 {
     public Guid MusicProjectId { get; init; }
@@ -11,12 +12,13 @@ public sealed class CreateGenerationJobRequest : IValidatableObject
     public string JobType { get; init; } = "Music";
 
     /// <summary>
-    /// Optional, non-secret options for the requested job. The project supplies its core music brief.
+    /// Opciones no secretas del trabajo; el proyecto aporta la descripción musical principal.
     /// </summary>
     public JsonElement? RequestedParameters { get; init; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
+        // El contrato comprueba forma y tamaño; las reglas musicales específicas se validan en el flujo.
         if (MusicProjectId == Guid.Empty)
         {
             yield return new ValidationResult("A music project ID is required.", [nameof(MusicProjectId)]);
@@ -41,6 +43,13 @@ public sealed class CreateGenerationJobRequest : IValidatableObject
             {
                 yield return new ValidationResult(
                     "Requested parameters cannot exceed 64 KB.",
+                    [nameof(RequestedParameters)]);
+            }
+            else if (parameters.TryGetProperty("useAI", out var useAI) &&
+                useAI.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            {
+                yield return new ValidationResult(
+                    "The useAI music-generation option must be a boolean.",
                     [nameof(RequestedParameters)]);
             }
         }

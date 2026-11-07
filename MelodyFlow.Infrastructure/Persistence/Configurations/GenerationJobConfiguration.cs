@@ -4,10 +4,12 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace MelodyFlow.Infrastructure.Persistence.Configurations;
 
+/// <summary>Mapea estados, leases, reintentos e índices usados para consultar la cola PostgreSQL.</summary>
 public sealed class GenerationJobConfiguration : IEntityTypeConfiguration<GenerationJob>
 {
     public void Configure(EntityTypeBuilder<GenerationJob> builder)
     {
+        // Estas restricciones mantienen coherentes los invariantes que también aplica la entidad de dominio.
         builder.ToTable("generation_jobs", table =>
         {
             table.HasCheckConstraint("ck_generation_jobs_attempt_count", "attempt_count >= 0 AND attempt_count <= max_attempts");

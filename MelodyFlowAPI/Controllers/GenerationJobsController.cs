@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MelodyFlowAPI.Controllers;
 
+/// <summary>Endpoints para encolar trabajos musicales, consultar su estado y solicitar cancelación.</summary>
 [ApiController]
 [Route("api/v1/generation-jobs")]
 public sealed class GenerationJobsController(GenerationJobApplicationService jobs) : ControllerBase
@@ -22,6 +23,7 @@ public sealed class GenerationJobsController(GenerationJobApplicationService job
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
         CancellationToken cancellationToken)
     {
+        // La misma clave solo puede repetirse con el mismo proyecto, tipo y parámetros normalizados.
         if (idempotencyKey is not null &&
             (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > GenerationJob.MaxIdempotencyKeyLength))
         {
@@ -88,6 +90,7 @@ public sealed class GenerationJobsController(GenerationJobApplicationService job
         Guid id,
         CancellationToken cancellationToken)
     {
+        // Un trabajo queued/retrying se cancela al instante; uno activo espera la confirmación del Worker.
         var result = await jobs.RequestCancellationAsync(id, cancellationToken);
 
         if (result.Outcome == CancellationGenerationJobOutcome.NotFound)

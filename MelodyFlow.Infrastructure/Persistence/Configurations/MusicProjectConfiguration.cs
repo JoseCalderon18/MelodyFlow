@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace MelodyFlow.Infrastructure.Persistence.Configurations;
 
+/// <summary>Define nombres, longitudes y restricción de duración de la tabla de proyectos.</summary>
 public sealed class MusicProjectConfiguration : IEntityTypeConfiguration<MusicProject>
 {
     public void Configure(EntityTypeBuilder<MusicProject> builder)

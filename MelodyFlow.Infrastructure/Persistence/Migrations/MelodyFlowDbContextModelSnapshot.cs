@@ -195,6 +195,80 @@ namespace MelodyFlow.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MelodyFlow.Domain.Entities.MusicTrack", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ArrangementPlanJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("arrangement_plan_json");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("DurationMs")
+                        .HasColumnType("bigint")
+                        .HasColumnName("duration_ms");
+
+                    b.Property<string>("Format")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("format");
+
+                    b.Property<Guid?>("GenerationJobId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("generation_job_id");
+
+                    b.Property<string>("LicenseEvidenceKey")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasColumnName("license_evidence_key");
+
+                    b.Property<Guid?>("MusicProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("music_project_id");
+
+                    b.Property<string>("ProviderAssetId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("provider_asset_id");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasColumnName("storage_key");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<bool>("UsedAI")
+                        .HasColumnType("boolean")
+                        .HasColumnName("used_ai");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GenerationJobId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_music_tracks_generation_job_id")
+                        .HasFilter("generation_job_id IS NOT NULL");
+
+                    b.HasIndex("MusicProjectId", "CreatedAt")
+                        .HasDatabaseName("ix_music_tracks_project_created_at");
+
+                    b.ToTable("music_tracks", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_music_tracks_duration_positive", "duration_ms IS NULL OR duration_ms > 0");
+                        });
+                });
+
             modelBuilder.Entity("MelodyFlow.Domain.Entities.GenerationJob", b =>
                 {
                     b.HasOne("MelodyFlow.Domain.Entities.MusicProject", null)
@@ -202,6 +276,19 @@ namespace MelodyFlow.Infrastructure.Persistence.Migrations
                         .HasForeignKey("MusicProjectId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("MelodyFlow.Domain.Entities.MusicTrack", b =>
+                {
+                    b.HasOne("MelodyFlow.Domain.Entities.GenerationJob", null)
+                        .WithMany()
+                        .HasForeignKey("GenerationJobId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MelodyFlow.Domain.Entities.MusicProject", null)
+                        .WithMany()
+                        .HasForeignKey("MusicProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 #pragma warning restore 612, 618
         }

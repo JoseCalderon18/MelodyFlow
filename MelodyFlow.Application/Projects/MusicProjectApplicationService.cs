@@ -2,8 +2,10 @@ using MelodyFlow.Domain.Entities;
 
 namespace MelodyFlow.Application.Projects;
 
+/// <summary>Aplica las operaciones de proyecto y valida la paginación antes de consultar el repositorio.</summary>
 public sealed class MusicProjectApplicationService(IMusicProjectRepository repository)
 {
+    /// <summary>Crea el proyecto de dominio y lo guarda mediante el puerto del repositorio.</summary>
     public async Task<MusicProject> CreateAsync(
         string title,
         string genre,
@@ -21,6 +23,7 @@ public sealed class MusicProjectApplicationService(IMusicProjectRepository repos
 
     public Task<ProjectPage> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken)
     {
+        // Se comprueba el desplazamiento antes de calcularlo para evitar desbordamientos de enteros.
         if (page < 1)
         {
             throw new ArgumentOutOfRangeException(nameof(page), "Page must be at least 1.");

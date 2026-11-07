@@ -1,18 +1,24 @@
 using MelodyFlow.WebApp.Components;
+using MelodyFlow.WebApp.Services;
 
+// La interfaz Blazor se configura como aplicación interactiva de servidor.
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Registra los servicios de componentes Razor.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+var apiBaseUrl = builder.Configuration["MelodyFlowApi:BaseUrl"] ?? "http://localhost:5032/";
+builder.Services.AddHttpClient<MelodyFlowApiClient>(client =>
+    client.BaseAddress = new Uri(apiBaseUrl, UriKind.Absolute));
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configura el procesamiento HTTP de la interfaz.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+    // HSTS indica al navegador que use HTTPS durante 30 días en futuras visitas.
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);

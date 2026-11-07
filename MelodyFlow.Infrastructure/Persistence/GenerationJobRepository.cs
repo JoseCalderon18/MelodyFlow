@@ -6,6 +6,9 @@ using Npgsql;
 
 namespace MelodyFlow.Infrastructure.Persistence;
 
+/// <summary>
+/// Implementa la cola durable en PostgreSQL, el control de idempotencia y las actualizaciones bajo lease.
+/// </summary>
 public sealed class GenerationJobRepository(
     MelodyFlowDbContext dbContext,
     GenerationJobRetryPolicy retryPolicy) : IGenerationJobRepository
@@ -17,6 +20,7 @@ public sealed class GenerationJobRepository(
         GenerationJob job,
         CancellationToken cancellationToken)
     {
+        // Primero se consulta la clave; el índice único cubre la carrera entre solicitudes simultáneas.
         if (job.IdempotencyKey is not null)
         {
             var existing = await FindIdempotentRequestAsync(job, cancellationToken);
@@ -35,7 +39,7 @@ public sealed class GenerationJobRepository(
         }
         catch (DbUpdateException exception) when (IsIdempotencyIndexConflict(exception))
         {
-            // Two API requests can pass the first lookup at the same time; the unique index picks one winner.
+            // Dos peticiones pueden superar la primera consulta a la vez; el índice único elige una ganadora.
             dbContext.Entry(job).State = EntityState.Detached;
             var existing = await FindIdempotentRequestAsync(job, cancellationToken)
                 ?? throw new InvalidOperationException("The conflicting idempotent job could not be found.", exception);
@@ -92,6 +96,7 @@ public sealed class GenerationJobRepository(
         TimeSpan leaseDuration,
         CancellationToken cancellationToken)
     {
+        // Una transacción recupera leases vencidos y reclama como máximo un trabajo disponible.
         if (supportedJobTypes.Count == 0)
         {
             return null;
@@ -107,7 +112,8 @@ public sealed class GenerationJobRepository(
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        // A process that died stops renewing its lease. Requeue those jobs under row locks before taking new work.
+        // Si un proceso muere deja de renovar el lease; se recuperan sus trabajos bajo bloqueo antes de reclamar otros.
+        // SKIP LOCKED permite que varios Workers busquen filas distintas sin esperar entre sí.
         var expiredJobs = await ReadLockedJobsAsync(
             $"""
             SELECT *
@@ -126,6 +132,7 @@ public sealed class GenerationJobRepository(
             expiredJob.RecoverExpiredLease(now, retryPolicy.GetDelay(expiredJob.AttemptCount));
         }
 
+        // Solo entran trabajos nuevos o retries cuya fecha programada ya llegó.
         var candidate = (await ReadLockedJobsAsync(
             $"""
             SELECT *
@@ -256,6 +263,7 @@ public sealed class GenerationJobRepository(
             return FailureHandlingResult.LeaseLost;
         }
 
+        // Solo fallos transitorios con intentos restantes se programan de nuevo.
         var safeCode = Limit(errorCode, 100);
         var safeMessage = Limit(safeErrorMessage, 2_000);
         var canRetry = isTransient && job.AttemptCount < job.MaxAttempts;

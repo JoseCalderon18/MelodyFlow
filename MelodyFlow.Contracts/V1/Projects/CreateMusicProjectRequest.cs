@@ -3,6 +3,7 @@ using MelodyFlow.Contracts.Validation;
 
 namespace MelodyFlow.Contracts.V1.Projects;
 
+/// <summary>Campos que el cliente puede enviar para crear un proyecto musical.</summary>
 public sealed class CreateMusicProjectRequest
 {
     [Required]

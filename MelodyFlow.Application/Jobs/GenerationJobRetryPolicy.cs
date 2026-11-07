@@ -1,12 +1,13 @@
 namespace MelodyFlow.Application.Jobs;
 
 /// <summary>
-/// Keeps automatic retries bounded and gives the database queue a predictable delay.
+/// Limita los reintentos automáticos y establece una espera predecible para la cola.
 /// </summary>
 public sealed class GenerationJobRetryPolicy
 {
     private static readonly TimeSpan MaximumDelay = TimeSpan.FromMinutes(5);
 
+    /// <summary>Calcula un backoff exponencial desde cinco segundos, limitado a cinco minutos.</summary>
     public TimeSpan GetDelay(int completedAttemptCount)
     {
         if (completedAttemptCount < 1)

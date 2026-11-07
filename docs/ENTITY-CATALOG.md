@@ -1,6 +1,6 @@
 # MelodyFlow — Proposed entity catalog
 
-> **Status:** `MusicProject` and `GenerationJob` entities and EF mappings are implemented. `InitialMusicSchema` and `AddPostgresGenerationJobQueue` are generated but not applied; later-phase tables below remain proposals. This is the source of truth for domain schema fields. Review schema changes before applying migrations.
+> **Status:** `MusicProject`, `GenerationJob` and `MusicTrack` entities and EF mappings are implemented. All four current migrations, including `AddMusicTrackAiAttribution`, are applied to the local development database. Other later-phase tables below remain proposals. This is the source of truth for domain schema fields. Review schema changes before applying migrations to another database.
 >
 > **Sources:** MelodyFlow product requirements and architecture decisions. Properties explicitly labeled **YouTube-derived** correspond to the [YouTube Videos resource](https://developers.google.com/youtube/v3/docs/videos). That external API does **not** define our PostgreSQL schema. DTOs also do not generate tables: EF Core migrations use the configured entity model.
 
@@ -64,7 +64,7 @@ Tracks an asynchronous request, its progress and retries; it is not itself a son
 
 Retry only transient failures; backoff starts at five seconds and is capped at five minutes. The queue uses PostgreSQL `FOR UPDATE SKIP LOCKED`, lease renewal and expired-lease recovery. A third failed attempt results in `Failed` unless a separate authorized manual retry policy applies. A worker cancellation request is cooperative; a queued/retrying job becomes `Cancelled` immediately.
 
-### MusicTrack (`music_tracks`) — music library, phase 2
+### MusicTrack (`music_tracks`) — generated audio metadata, initial implementation
 
 An individual audio track that **can be reused across multiple projects and rendered videos**.
 
@@ -79,7 +79,11 @@ An individual audio track that **can be reused across multiple projects and rend
 | Format | string? | e.g. mp3/wav; validate supported types |
 | ProviderAssetId | string? | External provider reference |
 | LicenseEvidenceKey | string? | Reference to proof of commercial rights |
+| ArrangementPlanJson | string | Required PostgreSQL `jsonb`; validated plan snapshot used to generate MIDI |
+| UsedAI | bool | Required; whether an AI model contributed to the arrangement; defaults to false for newly created records |
 | CreatedAt | DateTimeOffset | UTC |
+
+The current music handler creates one track per generation job. A filtered unique index enforces that relationship when `GenerationJobId` is present. The file itself is kept outside PostgreSQL. `AddGeneratedMusicTracks` adds the table, duration check, optional origin/job foreign keys and query indexes; it is applied in the local development database. `AddMusicTrackAiAttribution` adds the `used_ai` column and backfills existing rows from the plan JSON, treating legacy plans without the flag as AI-assisted.
 
 **Change from the initial design:** Remove `SequenceNumber` from `MusicTrack`, because order belongs to the **use of a track in a video**, not to the reusable audio file itself. `MusicProjectId` is optional origin metadata; future project membership can use a separate join if needed.
 
@@ -280,9 +284,10 @@ Example: `CreateMusicProjectRequest` may send Title, Genre and TargetDurationSec
 
 | Phase | Database scope | Status |
 |---|---|---|
-| 1 | `MusicProject`, `GenerationJob` | **Implemented:** EF mappings and `InitialMusicSchema` generated; migration has not been applied |
-| 2–3 | PostgreSQL queue fields/indexes and job lifecycle | **Implemented:** `AddPostgresGenerationJobQueue` generated; migration has not been applied; music handler remains later |
-| 2 | `MusicTrack`, `VisualAsset`, `RenderedVideo`, `RenderedVideoTrack` | Planned; reuse and manual Google Flow import supported in design |
+| 1 | `MusicProject`, `GenerationJob` | **Implemented:** EF mappings and `InitialMusicSchema` generated and applied locally |
+| 2–3 | PostgreSQL queue fields/indexes and job lifecycle | **Implemented:** `AddPostgresGenerationJobQueue` generated and applied locally; the Worker now has a conditionally registered music handler |
+| 2 | `MusicTrack` | **Implemented:** metadata mapping and both track migrations applied locally, including the AI attribution column |
+| 2 | `VisualAsset`, `RenderedVideo`, `RenderedVideoTrack` | Planned; reuse and manual Google Flow import supported in design |
 | 2 later | `RenderedVideoVisualAsset` | Optional; add for multi-visual composition |
 | Publishing | `YouTubeChannel`, `YouTubePublication` | Planned |
 | Analytics | `YouTubeStatisticsSnapshot` | Planned |
@@ -301,8 +306,8 @@ Example: `CreateMusicProjectRequest` may send Title, Genre and TargetDurationSec
 ## Open decisions for later phases
 
 - `MusicProject.TargetDurationSeconds` is intentionally limited only to `> 0` until a product maximum is specified.
-- Storage implementation and how storage keys map onto the local D: drive or a later object store.
-- Arrangement planner choice (LM Studio or OpenRouter) and a commercially suitable SoundFont license.
+- Storage implementation can later move from local files to an object store without changing stored relative keys.
+- OpenRouter remains an optional planner adapter; LM Studio local is the selected provider. The chosen default SoundFont is FluidR3 GM under MIT with attribution.
 - Whether multiple music-project references need a separate project/track library association later.
 - Exact Google API write permissions, OAuth lifecycle and publication policy.
 

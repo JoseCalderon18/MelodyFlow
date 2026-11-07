@@ -3,6 +3,7 @@ using MelodyFlow.Domain.Enums;
 
 namespace MelodyFlow.Tests.Domain;
 
+/// <summary>Comprueba las validaciones, normalización y estado inicial de MusicProject.</summary>
 public sealed class MusicProjectTests
 {
     [Fact]

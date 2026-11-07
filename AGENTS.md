@@ -18,7 +18,7 @@ Read this file and `docs/DOCUMENTATION-MAP.md`, `docs/DECISIONS.md`, target proj
 
 ## Music generation rule
 
-LLM supplies JSON **arrangement plan**; C# composer generates MIDI; FluidSynth renders via licensed SoundFont; FFmpeg creates MP3/MP4. LM Studio != LMMS. n8n is workflow orchestrator, not musical renderer. MCP optional only, not a required dependency. MaxAttempts=3 including initial.
+By default, C# deterministically chooses an arrangement and generates MIDI; an unchecked `useAI` option keeps generative AI out of that track. When `useAI` is enabled, the local model may propose the arrangement; C# still generates MIDI and FluidSynth renders it via a SoundFont whose terms must permit the intended use; FFmpeg creates MP3/MP4. For music intended for YouTube monetization, verify terms for every selected tool, model, SoundFont and other resource; disclose AI contribution when used and follow current monetization rules. Retain required attribution and notices; do not promise eligibility. LM Studio != LMMS. n8n is an optional workflow orchestrator, not a musical renderer. MCP optional only, not a required dependency. MaxAttempts=3 including initial.
 
 ## Final response format
 

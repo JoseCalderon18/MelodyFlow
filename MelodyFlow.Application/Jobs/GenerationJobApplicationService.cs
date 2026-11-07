@@ -7,6 +7,7 @@ using MelodyFlow.Domain.Enums;
 
 namespace MelodyFlow.Application.Jobs;
 
+/// <summary>Orquesta la creación idempotente, consulta y cancelación de trabajos de generación.</summary>
 public sealed class GenerationJobApplicationService(
     IMusicProjectRepository projects,
     IGenerationJobRepository jobs)
@@ -18,11 +19,13 @@ public sealed class GenerationJobApplicationService(
         string? idempotencyKey,
         CancellationToken cancellationToken)
     {
+        // Verificar el proyecto antes de crear la fila evita encolar referencias inexistentes.
         if (await projects.GetByIdAsync(musicProjectId, cancellationToken) is null)
         {
             return new CreateGenerationJobResult(null, CreateGenerationJobOutcome.ProjectNotFound);
         }
 
+        // La huella permite distinguir un reintento igual de una clave repetida con parámetros distintos.
         var fingerprint = string.IsNullOrWhiteSpace(idempotencyKey)
             ? null
             : CreateFingerprint(musicProjectId, jobType, requestedParametersJson);
@@ -71,7 +74,7 @@ public sealed class GenerationJobApplicationService(
         return Convert.ToHexString(SHA256.HashData(stream.ToArray()));
     }
 
-    // Property order and whitespace should not make two otherwise identical n8n retries conflict.
+    // El orden de propiedades y los espacios no deben hacer que dos reintentos idénticos entren en conflicto.
     private static void WriteCanonicalJson(Utf8JsonWriter writer, JsonElement element)
     {
         switch (element.ValueKind)
@@ -100,6 +103,7 @@ public sealed class GenerationJobApplicationService(
     }
 }
 
+/// <summary>Resultado de crear o reutilizar un trabajo de generación.</summary>
 public enum CreateGenerationJobOutcome
 {
     ProjectNotFound,
@@ -108,4 +112,5 @@ public enum CreateGenerationJobOutcome
     IdempotencyConflict
 }
 
+/// <summary>Trabajo resultante y estado de la operación de creación.</summary>
 public sealed record CreateGenerationJobResult(GenerationJob? Job, CreateGenerationJobOutcome Outcome);

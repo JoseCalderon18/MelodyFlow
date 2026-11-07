@@ -1,5 +1,6 @@
 namespace MelodyFlow.Contracts.V1.GenerationJobs;
 
+/// <summary>Estado público de un trabajo, incluidos progreso, intentos y errores seguros.</summary>
 public sealed record GenerationJobResponse(
     Guid Id,
     Guid MusicProjectId,

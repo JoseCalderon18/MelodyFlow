@@ -6,11 +6,13 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace MelodyFlow.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
+    /// <summary>Añade leases, programación de retries e idempotencia a la cola PostgreSQL.</summary>
     public partial class AddPostgresGenerationJobQueue : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // Estos campos permiten recuperar ejecuciones abandonadas y reconocer reintentos HTTP del mismo cliente.
             migrationBuilder.DropIndex(
                 name: "IX_generation_jobs_music_project_id",
                 table: "generation_jobs");
@@ -47,7 +49,7 @@ namespace MelodyFlow.Infrastructure.Persistence.Migrations
                 maxLength: 64,
                 nullable: true);
 
-            // Existing retry rows predate scheduled retries; make them eligible immediately after migration.
+            // Los trabajos Retrying anteriores no tenían fecha; quedan disponibles desde el momento de la migración.
             migrationBuilder.Sql(
                 "UPDATE generation_jobs " +
                 "SET next_attempt_at = CURRENT_TIMESTAMP " +

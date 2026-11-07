@@ -3,6 +3,7 @@ using MelodyFlow.Domain.Entities;
 
 namespace MelodyFlow.Tests.Application;
 
+/// <summary>Comprueba la orquestación de proyectos y la validación de paginación de Application.</summary>
 public sealed class MusicProjectApplicationServiceTests
 {
     [Fact]

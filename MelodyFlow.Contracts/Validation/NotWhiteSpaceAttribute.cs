@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MelodyFlow.Contracts.Validation;
 
+/// <summary>Complementa Required para rechazar cadenas vacías o formadas solo por espacios.</summary>
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter)]
 public sealed class NotWhiteSpaceAttribute : ValidationAttribute
 {

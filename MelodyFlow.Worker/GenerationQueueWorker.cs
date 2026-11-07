@@ -6,6 +6,9 @@ using Microsoft.Extensions.Options;
 
 namespace MelodyFlow.Worker;
 
+/// <summary>
+/// Sondea la cola PostgreSQL, ejecuta el handler adecuado y mantiene el lease durante la ejecución.
+/// </summary>
 public sealed class GenerationQueueWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<GenerationQueueOptions> options,
@@ -19,6 +22,7 @@ public sealed class GenerationQueueWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Cada iteración procesa como máximo un trabajo; los fallos de sondeo se registran y se reintentan.
         logger.LogInformation("Generation queue worker started as {WorkerId}.", _workerId);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -45,6 +49,7 @@ public sealed class GenerationQueueWorker(
 
     private async Task RunOneIterationAsync(CancellationToken stoppingToken)
     {
+        // El scope limita la vida de DbContext y handlers a una iteración de la cola.
         await using var scope = scopeFactory.CreateAsyncScope();
         var handlers = scope.ServiceProvider.GetServices<IGenerationJobHandler>().ToArray();
 
@@ -105,6 +110,7 @@ public sealed class GenerationQueueWorker(
         IGenerationJobHandler handler,
         CancellationToken stoppingToken)
     {
+        // El heartbeat y el handler comparten la cancelación para detener el trabajo si se pierde el lease.
         using var executionCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         using var heartbeatCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         var heartbeatTask = RenewLeaseUntilStoppedAsync(claim, executionCancellation, heartbeatCancellation.Token);
@@ -206,6 +212,7 @@ public sealed class GenerationQueueWorker(
         CancellationTokenSource executionCancellation,
         CancellationToken cancellationToken)
     {
+        // Renueva un tercio de la duración del lease para detectar fallos antes de que expire.
         var interval = TimeSpan.FromTicks(_options.LeaseDuration.Ticks / 3);
         using var timer = new PeriodicTimer(interval);
 
@@ -294,6 +301,7 @@ public sealed class GenerationQueueWorker(
         bool isTransient,
         CancellationToken cancellationToken)
     {
+        // El repositorio decide entre Retrying y Failed según transitoriedad y máximo de intentos.
         if (cancellationToken.IsCancellationRequested)
         {
             return;

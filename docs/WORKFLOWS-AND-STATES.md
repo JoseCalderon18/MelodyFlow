@@ -26,12 +26,12 @@ State changes must enforce transition rules and concurrency. Do not declare Comp
 2. Set `Running`, increment `AttemptCount`, and assign a random lease token and expiry.
 3. Renew the lease during execution; if API cancellation changes the job to `Cancelling`, stop cooperatively and commit `Cancelled`.
 4. If a process dies, reclaim an expired lease; schedule another attempt or mark `Failed` after the third total attempt.
-5. A registered job-type handler loads safe parameters and credential references; ensure valid commercial license.
-6. Handler calls providers with timeout/cancellation, validates outputs, and reports progress.
+5. The Worker registers its Music handler when the SoundFont/license reference and local audio executables are configured. LM Studio and a model are needed only for jobs that explicitly set `useAI: true`.
+6. The handler validates safe parameters, requests the local arrangement plan, creates MIDI/MP3 with timeout and cancellation, and reports progress.
 7. Persist result metadata and job progress; media bytes remain in storage, not PostgreSQL.
 8. Keep structured logs but redact prompts where sensitive and never log keys.
 
-The queue lifecycle is implemented. No music handler is registered yet, so the Worker deliberately does not claim job types it cannot execute; accepted jobs stay available in PostgreSQL.
+The queue lifecycle and Music handler are implemented. The Worker claims only job types with a registered handler; when local generation prerequisites are missing, it does not register the Music handler and accepted jobs stay available in PostgreSQL.
 
 ## Music-to-video pipeline
 `Configure -> Create project -> Queue music job -> Generate audio assets -> Review -> Queue visual job -> Review -> Queue render -> FFmpeg mix + encode -> Review rights/quality -> Queue YouTube upload -> YouTube ID -> Analytics snapshots`.

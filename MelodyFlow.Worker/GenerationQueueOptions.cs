@@ -1,5 +1,6 @@
 namespace MelodyFlow.Worker;
 
+/// <summary>Intervalo de sondeo y duración del lease con que el Worker reclama trabajos.</summary>
 public sealed class GenerationQueueOptions
 {
     public int PollIntervalMilliseconds { get; init; } = 2_000;
@@ -8,6 +9,7 @@ public sealed class GenerationQueueOptions
     public TimeSpan PollInterval => TimeSpan.FromMilliseconds(PollIntervalMilliseconds);
     public TimeSpan LeaseDuration => TimeSpan.FromSeconds(LeaseDurationSeconds);
 
+    /// <summary>Rechaza valores que provocarían sondeo excesivo o leases demasiado cortos/largos.</summary>
     public void Validate()
     {
         if (PollIntervalMilliseconds is < 250 or > 60_000)

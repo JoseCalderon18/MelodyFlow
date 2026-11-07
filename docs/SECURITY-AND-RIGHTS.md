@@ -1,10 +1,15 @@
 # Security and rights
 
 - OAuth2 for YouTube; confidential refresh/access tokens in encrypted credential store or secrets manager, not `YouTubeChannel` row plaintext.
-- OpenRouter keys and n8n webhook keys never stored in entity catalog examples or version control; redact logging.
-- Manual Google Flow visuals require proof of usage rights and compliance with current terms. SoundFont instruments/samples need explicit commercial-use license review.
-- An algorithmic MIDI composer does not guarantee originality, Content ID clearance, or YouTube monetization eligibility. Review repetitive/reused-content and altered/synthetic content policies honestly; do not design features for hiding required disclosures.
+- OpenRouter keys and n8n webhook keys never stored in entity catalog examples or version control; redact logging. The current Worker uses local LM Studio and has no required provider key.
+- For any music intended for YouTube monetization, verify the current terms for each concrete tool, AI model, SoundFont, sample, visual and other resource before selecting it and again before publication. Confirm that commercial use and the intended distribution are allowed; record the source and applicable terms. Retain and include required attribution, copyright notices and other license notices wherever required. A license is a set of terms of use, not a software version or a key to enter. Prefer free options, but free does not guarantee zero total cost or commercial permission.
+- Manual Google Flow visuals require proof of usage rights and compliance with current terms. The default `FluidR3_GM.sf2` reference is MIT with attribution; keep its accompanying notice and verify that the locally obtained file matches that licensed resource. A downloaded LLM model has separate terms that must be checked for the intended commercial use.
+- Before publishing, check YouTube's current AI disclosure requirements and make the required declaration (YouTube lists AI-generated music as requiring disclosure); follow the current channel monetization rules, including originality/authenticity and reused-content rules. Disclosure alone does not determine monetization eligibility. An algorithmic MIDI composer does not guarantee originality, Content ID clearance, rights clearance or monetization. Do not design features for hiding required disclosures.
 - Validate every uploaded MIME, size, signature, duration; store outside webroot/DB; scan as appropriate; sanitize paths and isolate subprocess execution.
 - The current local-only API has no user login, Identity, JWT or API key. Development launch profiles bind to localhost, CORS allows only configured Web App origins, a global per-IP limiter allows 120 requests/minute, and `[ApiController]` validates request models. Do not expose the unauthenticated API beyond the local machine. Add user authentication only as a separately approved feature if the deployment model changes.
 - Keep structured logs free of credentials and sensitive prompts. The local n8n workflow calls the loopback API without credentials; do not expose it remotely. Any future remote service or webhook integration needs its own authentication, authorization and replay protection before it is enabled.
 - Before publication store rights evidence and manual approval when applicable.
+
+See [third-party notices](THIRD-PARTY-NOTICES.md) for the SoundFont attribution and the primary license reference. The repository does not bundle the SoundFont, FluidSynth or FFmpeg binaries.
+
+Check the current [YouTube AI disclosure guidance](https://support.google.com/youtube/answer/14328491) and [YouTube channel monetization policies](https://support.google.com/youtube/answer/1311392) before publication; platform rules can change.

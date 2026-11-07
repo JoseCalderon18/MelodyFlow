@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MelodyFlow.Infrastructure.Persistence;
 
+/// <summary>Persiste proyectos y devuelve listados estables con paginación.</summary>
 public sealed class MusicProjectRepository(MelodyFlowDbContext dbContext) : IMusicProjectRepository
 {
     public async Task AddAsync(MusicProject project, CancellationToken cancellationToken)
@@ -17,6 +18,7 @@ public sealed class MusicProjectRepository(MelodyFlowDbContext dbContext) : IMus
 
     public async Task<ProjectPage> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken)
     {
+        // Se ordena también por Id para que proyectos con la misma fecha no cambien de página al azar.
         var totalCount = await dbContext.MusicProjects.CountAsync(cancellationToken);
         var offset = checked((page - 1) * pageSize);
         var items = await dbContext.MusicProjects

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace MelodyFlow.Tests.Persistence;
 
+/// <summary>Inspecciona el modelo EF Core sin abrir una conexión con PostgreSQL.</summary>
 public sealed class PersistenceModelTests
 {
     [Fact]

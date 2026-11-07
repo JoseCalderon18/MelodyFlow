@@ -3,6 +3,10 @@ using MelodyFlow.Domain.Enums;
 
 namespace MelodyFlow.Domain.Entities;
 
+/// <summary>
+/// Solicitud asíncrona de generación y su máquina de estados, intentos, cancelación y lease del Worker.
+/// </summary>
+/// <remarks>Máximo predeterminado: tres intentos en total, contando el intento inicial.</remarks>
 public sealed class GenerationJob
 {
     public const int DefaultMaxAttempts = 3;
@@ -75,6 +79,7 @@ public sealed class GenerationJob
     public Guid? LeaseToken { get; private set; }
     public DateTimeOffset? LeaseExpiresAt { get; private set; }
 
+    /// <summary>Marca el trabajo listo para reclamar, limpiando la fecha de retry si la tenía.</summary>
     public void Queue()
     {
         EnsureStatus(JobStatus.Pending, JobStatus.Retrying);
@@ -82,6 +87,7 @@ public sealed class GenerationJob
         SetStatus(JobStatus.Queued);
     }
 
+    /// <summary>Empieza un intento reclamado e incrementa el contador antes de ejecutar el handler.</summary>
     public void StartAttempt()
     {
         EnsureStatus(JobStatus.Queued);
@@ -96,6 +102,7 @@ public sealed class GenerationJob
         SetStatus(JobStatus.Running);
     }
 
+    /// <summary>Guarda el porcentaje de avance informado por el handler actual.</summary>
     public void ReportProgress(int progressPercent)
     {
         EnsureStatus(JobStatus.Running);
@@ -117,6 +124,7 @@ public sealed class GenerationJob
         MarkRetrying(errorCode, errorMessage, DateTimeOffset.UtcNow);
     }
 
+    /// <summary>Programa otro intento y libera el lease del Worker que acaba de fallar.</summary>
     public void MarkRetrying(string? errorCode, string? errorMessage, DateTimeOffset nextAttemptAt)
     {
         EnsureStatus(JobStatus.Running);
@@ -132,6 +140,7 @@ public sealed class GenerationJob
         SetStatus(JobStatus.Retrying);
     }
 
+    /// <summary>Termina el trabajo con error y limpia cualquier fecha de retry y lease activos.</summary>
     public void MarkFailed(string? errorCode, string? errorMessage)
     {
         EnsureStatus(JobStatus.Running, JobStatus.Retrying);
@@ -142,6 +151,7 @@ public sealed class GenerationJob
         SetStatus(JobStatus.Failed);
     }
 
+    /// <summary>Marca el trabajo completado, deja el progreso al 100 % y libera el lease.</summary>
     public void MarkCompleted()
     {
         EnsureStatus(JobStatus.Running);
@@ -154,6 +164,7 @@ public sealed class GenerationJob
         SetStatus(JobStatus.Completed);
     }
 
+    /// <summary>Cancela inmediatamente si aún no se ejecuta; en Running solicita confirmación cooperativa al Worker.</summary>
     public void RequestCancellation()
     {
         switch (Status)
@@ -178,6 +189,7 @@ public sealed class GenerationJob
         }
     }
 
+    /// <summary>Confirma la cancelación después de que el Worker haya detenido el proceso activo.</summary>
     public void MarkCancelled()
     {
         EnsureStatus(JobStatus.Cancelling);
@@ -187,6 +199,7 @@ public sealed class GenerationJob
         SetStatus(JobStatus.Cancelled);
     }
 
+    /// <summary>Asigna al Worker un token único que debe presentar en las actualizaciones posteriores.</summary>
     public void AcquireLease(string workerId, Guid leaseToken, DateTimeOffset leaseExpiresAt)
     {
         EnsureStatus(JobStatus.Running);
@@ -214,6 +227,7 @@ public sealed class GenerationJob
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    /// <summary>Extiende el lease solo si el token coincide con el dueño actual.</summary>
     public bool RenewLease(Guid leaseToken, DateTimeOffset leaseExpiresAt)
     {
         if (Status != JobStatus.Running || LeaseToken != leaseToken)
@@ -233,6 +247,7 @@ public sealed class GenerationJob
 
     public bool OwnsLease(Guid leaseToken) => LeaseToken == leaseToken;
 
+    /// <summary>Recupera una ejecución cuyo Worker dejó de renovar el lease.</summary>
     public void RecoverExpiredLease(DateTimeOffset now, TimeSpan retryDelay)
     {
         if (LeaseExpiresAt is not null && LeaseExpiresAt > now)
@@ -328,6 +343,7 @@ public sealed class GenerationJob
 
     private static string? NormalizeFingerprint(string? fingerprint, string? idempotencyKey)
     {
+        // La huella solo tiene sentido cuando el cliente envía una clave de idempotencia.
         if (idempotencyKey is null)
         {
             return null;

@@ -6,19 +6,19 @@ n8n coordinates schedules, human approval, alerts, event-driven fanout and statu
 
 ## Implemented flow boundary
 
-The local API exposes project and generation-job HTTP endpoints. PostgreSQL stores accepted work durably; n8n never writes directly to the database. A suitable local workflow is `Schedule Trigger` → create or select project → `POST /api/v1/generation-jobs` → poll `GET /api/v1/generation-jobs/{id}` with a bounded wait → notify on completion/failure. Cancellation uses `POST /api/v1/generation-jobs/{id}/cancellation`.
+The local API exposes project, generation-job and generated-track HTTP endpoints. PostgreSQL stores accepted work durably; n8n never writes directly to the database. A suitable local workflow is `Schedule Trigger` → create or select project → `POST /api/v1/generation-jobs` → poll `GET /api/v1/generation-jobs/{id}` with a bounded wait → on completion call `GET /api/v1/generation-jobs/{id}/track` → download from its `audioUrl` → notify. Cancellation uses `POST /api/v1/generation-jobs/{id}/cancellation`.
 
 ```json
 {
   "musicProjectId": "00000000-0000-0000-0000-000000000001",
   "jobType": "Music",
-  "requestedParameters": { "variationSeed": 12345 }
+  "requestedParameters": { "useAI": false, "variationSeed": 12345 }
 }
 ```
 
 Set the optional HTTP header `Idempotency-Key` to a stable schedule/run key (for example `lofi-weekly-2026-10-18`). It is scoped to project + job type. An identical retry returns the existing job; reusing the key with changed parameters returns 409. Only `Music` jobs are accepted at present.
 
-The local API has no user or service authentication by the agreed local-only decision. Keep both n8n and the API on the same machine and do not expose this API to a public or shared network. If n8n runs in Docker, `localhost` inside the n8n container points to that container; configure a deliberate host-gateway/network route and host firewall rule before connecting it. Browser CORS does not apply to n8n's server-to-server HTTP calls.
+The local API has no user or service authentication by the agreed local-only decision. Keep both n8n and the API on the same machine and do not expose this API to a public or shared network. If n8n runs in Docker, `localhost` inside the n8n container points to that container; configure a deliberate host-gateway/network route and host firewall rule before connecting it. Browser CORS does not apply to n8n's server-to-server HTTP calls. Audio tools and the SoundFont are required by the Worker. A local LM Studio model is required only when `requestedParameters.useAI` is `true`; its default is `false`.
 
 ## Authentication and callbacks
 
@@ -30,11 +30,11 @@ The local API has no user or service authentication by the agreed local-only dec
 
 ## Reliability checklist
 
-A 202 means a job row was committed, not that music was generated. Handle 400/404/409/429/503; use bounded polling with a delay; redact prompts and secrets from execution logs; do not auto-publish until reviewed. The Worker queue is ready, but its music/audio handler remains to be implemented, so a job currently stays `Queued` until a handler is registered. Record external execution IDs only if audit is genuinely necessary (`WorkflowExecution` optional).
+A 202 means a job row was committed, not that music was generated. Handle 400/404/409/429/503; use bounded polling with a delay; redact prompts and secrets from execution logs; do not auto-publish until reviewed. When generation completes, the track endpoint returns `audioUrl`; MP3 bytes are streamed from the API. If local generation prerequisites are not configured, the Worker keeps the job `Queued`. Record external execution IDs only if audit is genuinely necessary (`WorkflowExecution` optional).
 
 ## Integration acceptance
 
-Manually trigger flow on local n8n after applying the reviewed MelodyFlow migrations. Verify one `GenerationJob` is created after a request retry, poll its status, cancel a queued job, and confirm n8n never connects to PostgreSQL. Until the music handler exists, confirm the job remains queued rather than being falsely reported complete.
+Manually trigger flow on local n8n after applying the reviewed MelodyFlow migrations and configuring the Worker. Verify one `GenerationJob` is created after a request retry, poll its status, cancel a queued job, retrieve the generated track/audio URL, and confirm n8n never connects to PostgreSQL. This live workflow has not yet been run.
 
 ## References
 

@@ -16,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace MelodyFlow.Tests.Api;
 
+/// <summary>Prueba los contratos HTTP de proyectos y trabajos con repositorios en memoria.</summary>
 public sealed class ProjectsApiTests : IClassFixture<MelodyFlowApiFactory>
 {
     private readonly HttpClient _client;
@@ -190,6 +191,7 @@ public sealed class ProjectsApiTests : IClassFixture<MelodyFlowApiFactory>
     private sealed record ProjectDto(Guid Id, string Title);
 }
 
+/// <summary>Levanta la API en pruebas y sustituye PostgreSQL por repositorios en memoria.</summary>
 public sealed class MelodyFlowApiFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -337,6 +339,7 @@ public sealed class MelodyFlowApiFactory : WebApplicationFactory<Program>
     }
 }
 
+/// <summary>Comprueba que las peticiones que superan el límite reciben HTTP 429 con Problem Details.</summary>
 public sealed class RateLimitApiTests
 {
     [Fact]

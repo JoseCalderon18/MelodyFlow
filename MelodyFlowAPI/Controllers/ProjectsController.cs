@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MelodyFlowAPI.Controllers;
 
+/// <summary>Endpoints HTTP para crear y consultar proyectos musicales.</summary>
 [ApiController]
 [Route("api/v1/projects")]
 public sealed class ProjectsController(MusicProjectApplicationService projects) : ControllerBase
@@ -18,6 +19,7 @@ public sealed class ProjectsController(MusicProjectApplicationService projects) 
         [FromBody] CreateMusicProjectRequest request,
         CancellationToken cancellationToken)
     {
+        // El caso de uso crea la entidad; el controlador adapta la entrada y la respuesta HTTP.
         var project = await projects.CreateAsync(
             request.Title,
             request.Genre,
@@ -35,6 +37,7 @@ public sealed class ProjectsController(MusicProjectApplicationService projects) 
         [FromQuery] ProjectPageQuery query,
         CancellationToken cancellationToken)
     {
+        // La respuesta incluye el total para que el cliente pueda construir la navegación del listado.
         var page = await projects.GetPageAsync(query.Page, query.PageSize, cancellationToken);
         var response = new PagedResponse<ProjectResponse>(
             page.Items.Select(Map).ToArray(),
@@ -67,6 +70,7 @@ public sealed class ProjectsController(MusicProjectApplicationService projects) 
         project.UpdatedAt);
 }
 
+/// <summary>Parámetros del listado y validación de desbordamiento del offset.</summary>
 public sealed class ProjectPageQuery : IValidatableObject
 {
     [Range(1, int.MaxValue)]

@@ -3,6 +3,7 @@ using MelodyFlow.Domain.Enums;
 
 namespace MelodyFlow.Tests.Domain;
 
+/// <summary>Comprueba invariantes de estados, reintentos, cancelación y leases de GenerationJob.</summary>
 public sealed class GenerationJobTests
 {
     [Fact]
