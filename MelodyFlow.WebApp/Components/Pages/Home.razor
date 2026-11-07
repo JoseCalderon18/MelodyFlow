@@ -1,167 +1,43 @@
 @page "/"
-@using System.ComponentModel.DataAnnotations
-@using MelodyFlow.Contracts.V1.GenerationJobs
-@using MelodyFlow.Contracts.V1.MusicTracks
-@using MelodyFlow.Contracts.V1.Projects
-@using MelodyFlow.WebApp.Services
-@inject MelodyFlowApiClient Api
-
-<PageTitle>MelodyFlow — Generar música</PageTitle>
-
-<div class="container py-4" style="max-width: 760px">
-    <h1>Generar música</h1>
-    <p class="text-secondary">Crea un proyecto y encola una canción. Por defecto, la composición se hace sin IA.</p>
-
-    <EditForm Model="form" OnValidSubmit="CreateAsync" class="card card-body gap-3">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
-
-        <div>
-            <label class="form-label" for="title">Título</label>
-            <InputText id="title" class="form-control" @bind-Value="form.Title" />
-            <ValidationMessage For="@(() => form.Title)" />
-        </div>
-
-        <div>
-            <label class="form-label" for="genre">Género</label>
-            <InputText id="genre" class="form-control" @bind-Value="form.Genre" />
-            <ValidationMessage For="@(() => form.Genre)" />
-        </div>
-
-        <div>
-            <label class="form-label" for="mood">Ambiente (opcional)</label>
-            <InputText id="mood" class="form-control" @bind-Value="form.Mood" />
-        </div>
-
-        <div>
-            <label class="form-label" for="duration">Duración, en segundos</label>
-            <InputNumber id="duration" class="form-control" @bind-Value="form.TargetDurationSeconds" />
-            <ValidationMessage For="@(() => form.TargetDurationSeconds)" />
-        </div>
-
-        <div class="form-check">
-            <InputCheckbox id="use-ai" class="form-check-input" @bind-Value="form.UseAI" />
-            <label class="form-check-label" for="use-ai">Usar IA para proponer los acordes</label>
-            <div class="form-text">Desmarcado: C# crea el arreglo con reglas deterministas. Marcado: LM Studio local propone la armonía.</div>
-        </div>
-
-        <button class="btn btn-primary align-self-start" type="submit" disabled="@submitting">
-            @(submitting ? "Enviando…" : "Crear proyecto y generar")
-        </button>
-    </EditForm>
-
-    @if (!string.IsNullOrWhiteSpace(errorMessage))
-    {
-        <div class="alert alert-danger mt-3" role="alert">@errorMessage</div>
-    }
-
-    @if (job is not null)
-    {
-        <section class="card card-body mt-4 gap-2" aria-live="polite">
-            <h2 class="h5">Estado de generación</h2>
-            <p class="mb-1">@job.Status — @job.ProgressPercent%</p>
-            @if (!string.IsNullOrWhiteSpace(job.ErrorMessage))
-            {
-                <p class="text-danger">@job.ErrorMessage</p>
-            }
-            @if (job.Status is "Queued" or "Running" or "Retrying")
-            {
-                <button class="btn btn-outline-secondary align-self-start" @onclick="RefreshAsync" disabled="@refreshing">
-                    @(refreshing ? "Consultando…" : "Actualizar estado")
-                </button>
-            }
-            @if (track is not null)
-            {
-                <p>Uso de IA registrado: @(track.UsedAI ? "sí" : "no").</p>
-                <audio controls src="@Api.GetAudioUri(track.AudioUrl).ToString()"></audio>
-                <a class="btn btn-success align-self-start" href="@Api.GetAudioUri(track.AudioUrl).ToString()" download>Descargar MP3</a>
-            }
+<PageTitle>MelodyFlow Studio</PageTitle>
+<div class="studio-shell">
+    <header class="studio-topbar"><a class="brand" href="/"><span class="brand-mark">♫</span> melodyflow <span class="brand-light">studio</span></a><span class="local-badge"><i></i> ESTUDIO LOCAL</span></header>
+    <main class="studio-main">
+        <section class="hero">
+            <div><p class="eyebrow">TU IDEA, EN FORMA DE MÚSICA</p><h1>Crea la banda sonora<br />de lo que imaginas.</h1><p class="hero-subtitle">Elige un estilo, define el ambiente y genera una pista lista para escuchar.</p><div class="hero-tags"><span>♫ MIDI</span><span>◉ WAV</span><span>↓ MP3</span></div></div>
+            <div class="hero-art" aria-hidden="true"><div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div><div class="art-disc">♫</div><div class="wave-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="art-caption">SOUND IN MOTION</span></div>
         </section>
-    }
+        <div class="workspace-grid">
+            <section class="creation-panel">
+                <div class="panel-heading"><div><p class="eyebrow">NUEVA CREACIÓN</p><h2>Diseña tu pista</h2></div><span class="step-pill">01 <span>/</span> 01</span></div>
+                <EditForm Model="form" OnValidSubmit="CreateAsync" class="creation-form">
+                    <DataAnnotationsValidator />
+                    <div class="field-block"><label for="title">Nombre del proyecto</label><InputText id="title" class="studio-input" placeholder="Ej. Luces de medianoche" @bind-Value="form.Title" disabled="@submitting" /><ValidationMessage For="@(() => form.Title)" /></div>
+                    <div class="field-row">
+                        <div class="field-block"><label for="genre">Género</label><InputSelect id="genre" class="studio-input" @bind-Value="form.Genre" disabled="@submitting">
+                            <option value="">Selecciona un género</option><option value="lofi">Lo-fi</option><option value="ambient">Ambient</option><option value="electronic">Electrónica</option><option value="classical">Clásica</option><option value="jazz">Jazz</option><option value="hip-hop">Hip-hop</option><option value="rock">Rock</option><option value="cinematic">Cinemática</option><option value="orchestral">Orquestal</option><option value="pop">Pop</option><option value="latin">Latina</option><option value="rnb">R&amp;B</option>
+                        </InputSelect><ValidationMessage For="@(() => form.Genre)" /></div>
+                        <div class="field-block"><label for="mood">Ambiente</label><InputSelect id="mood" class="studio-input" @bind-Value="form.Mood" disabled="@submitting"><option value="">Elige un ambiente</option><option value="calm">Tranquilo</option><option value="focused">Enfocado</option><option value="energetic">Enérgico</option><option value="dark">Oscuro</option><option value="uplifting">Optimista</option><option value="romantic">Romántico</option><option value="epic">Épico</option><option value="dreamy">Onírico</option><option value="relaxing">Relajante</option></InputSelect></div>
+                    </div>
+                    <div class="field-block"><div class="label-line"><label for="duration">Duración</label><span class="field-hint">Puedes cambiarla luego</span></div><InputSelect id="duration" class="studio-input" @bind-Value="form.TargetDurationSeconds" disabled="@submitting"><option value="30">30 segundos · prueba rápida</option><option value="60">1 minuto</option><option value="120">2 minutos</option><option value="180">3 minutos</option><option value="300">5 minutos</option><option value="480">8 minutos</option></InputSelect></div>
+                    <div class="ai-option"><div class="ai-icon">✳</div><div class="ai-copy"><strong>Plan de armonía con IA</strong><span>Desactivado: C# crea el arreglo con reglas musicales. Actívalo para pedir una propuesta a LM Studio.</span></div><InputCheckbox id="use-ai" class="studio-toggle" @bind-Value="form.UseAI" disabled="@submitting" /></div>
+                    <ValidationSummary />
+                    <button class="generate-button" type="submit" disabled="@submitting">@if (submitting) { <span class="button-spinner"></span><span>Enviando solicitud…</span> } else { <span>♫</span><span>@(project is null ? "Crear proyecto y generar" : "Reintentar generación")</span><span class="button-arrow">→</span> }</button>
+                    <p class="form-footnote">@(project is null ? "Se guardará el proyecto y la solicitud de generación." : "El proyecto ya está guardado; reintentaremos solo la solicitud.")</p>
+                </EditForm>
+            </section>
+            <aside class="side-column"><section class="info-card"><p class="eyebrow">ASÍ FUNCIONA</p><h3>De la idea a la pista</h3><ol class="process-list"><li><span>1</span><div><strong>Defines el sonido</strong><small>Género, ambiente y duración.</small></div></li><li><span>2</span><div><strong>Se prepara el arreglo</strong><small>Con reglas C# o con el plan opcional de IA.</small></div></li><li><span>3</span><div><strong>Se renderiza el audio</strong><small>El Worker convierte el arreglo en una pista.</small></div></li></ol></section><section class="quote-card"><span class="quote-mark">“</span><p>Empieza con una idea sencilla.<br />El sonido lo construimos paso a paso.</p><div class="quote-rule"></div><span class="quote-signature">MELODYFLOW / 01</span></section></aside>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(errorMessage)) { <div class="result-alert error-alert" role="alert"><span class="alert-symbol">!</span><div><strong>No se pudo completar la solicitud</strong><p>@errorMessage</p></div></div> }
+        @if (job is not null)
+        {
+            <section class="result-panel" aria-live="polite"><div class="result-heading"><div><p class="eyebrow">TRABAJO @ShortJobId</p><h2>Tu generación</h2></div><span class="job-status @StatusClass">@StatusLabel</span></div>
+                <div class="progress-track"><div class="progress-fill" style="width: @(Math.Clamp(job.ProgressPercent, 0, 100))%"></div></div><p class="result-detail">@StatusDescription <span>@job.ProgressPercent%</span></p>
+                @if (!string.IsNullOrWhiteSpace(job.ErrorMessage)) { <p class="job-error">@job.ErrorMessage</p> }
+                @if (job.Status is "Queued" or "Running" or "Retrying") { <p class="worker-hint">La solicitud ya llegó a la API. Si permanece en cola, comprueba que <strong>MelodyFlow.Worker</strong> esté iniciado.</p><button class="secondary-button" @onclick="RefreshAsync" disabled="@refreshing">@(refreshing ? "Consultando…" : "Actualizar estado")</button> }
+                @if (track is not null) { <div class="audio-result"><div class="track-art">♫</div><div class="track-details"><strong>@track.Title</strong><span>@project?.Genre · @(track.UsedAI ? "Plan con IA" : "Arreglo determinista")</span></div><audio controls src="@Api.GetAudioUri(track.AudioUrl).ToString()"></audio><a class="download-link" href="@Api.GetAudioUri(track.AudioUrl).ToString()" download>Descargar MP3 ↓</a></div> }
+            </section>
+        }
+        <footer class="studio-footer"><span>MELODYFLOW STUDIO</span><span>Composición local · Control creativo en tus manos</span></footer>
+    </main>
 </div>
-
-@code {
-    private readonly MusicProjectForm form = new();
-    private GenerationJobResponse? job;
-    private MusicTrackResponse? track;
-    private bool submitting;
-    private bool refreshing;
-    private string? errorMessage;
-
-    private async Task CreateAsync()
-    {
-        submitting = true;
-        errorMessage = null;
-        job = null;
-        track = null;
-        try
-        {
-            var project = await Api.CreateProjectAsync(
-                new CreateMusicProjectRequest
-                {
-                    Title = form.Title,
-                    Genre = form.Genre,
-                    Mood = form.Mood,
-                    TargetDurationSeconds = form.TargetDurationSeconds
-                },
-                CancellationToken.None);
-            job = await Api.CreateMusicJobAsync(project.Id, form.UseAI, CancellationToken.None);
-        }
-        catch (HttpRequestException)
-        {
-            errorMessage = "No se pudo contactar con la API. Comprueba que MelodyFlowAPI esté arrancada.";
-        }
-        catch (InvalidDataException)
-        {
-            errorMessage = "La API devolvió una respuesta inesperada. Revisa sus registros.";
-        }
-        finally
-        {
-            submitting = false;
-        }
-    }
-
-    private async Task RefreshAsync()
-    {
-        if (job is null)
-        {
-            return;
-        }
-
-        refreshing = true;
-        errorMessage = null;
-        try
-        {
-            job = await Api.GetMusicJobAsync(job.Id, CancellationToken.None);
-            if (job?.Status == "Completed")
-            {
-                track = await Api.GetTrackAsync(job.Id, CancellationToken.None);
-            }
-        }
-        catch (HttpRequestException)
-        {
-            errorMessage = "No se pudo consultar la API. Comprueba que siga arrancada.";
-        }
-        finally
-        {
-            refreshing = false;
-        }
-    }
-
-    private sealed class MusicProjectForm
-    {
-        [Required, StringLength(200, MinimumLength = 1)]
-        public string Title { get; set; } = string.Empty;
-
-        [Required, StringLength(80, MinimumLength = 1)]
-        public string Genre { get; set; } = string.Empty;
-
-        [StringLength(80)]
-        public string? Mood { get; set; }
-
-        [Range(1, 4800)]
-        public int TargetDurationSeconds { get; set; } = 60;
-
-        public bool UseAI { get; set; }
-    }
-}
