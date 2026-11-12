@@ -3,80 +3,104 @@ using MelodyFlow.Domain.Entities;
 
 namespace MelodyFlow.Infrastructure.MusicGeneration;
 
-/// <summary>Genera acordes y parámetros básicos con reglas reproducibles, sin llamar a ningún modelo.</summary>
+/// <summary>Builds repeatable, style-aware plans without calling a generative model.</summary>
 internal static class DeterministicArrangementPlanner
 {
-    private static readonly string[] PitchClassNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-    private static readonly int[][] MajorProgressions = [[0, 4, 5, 3], [0, 5, 3, 4], [0, 3, 4, 0]];
-    private static readonly int[][] MinorProgressions = [[0, 5, 2, 6], [0, 6, 5, 6], [0, 3, 6, 5]];
-    private static readonly string[] MajorQualities = ["", "m", "m", "", "", "m", "dim"];
-    private static readonly string[] MinorQualities = ["m", "dim", "", "m", "m", "", ""];
+    private static readonly IReadOnlyDictionary<string, int[][]> Progressions = new Dictionary<string, int[][]>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ionian"] = [[0, 4, 5, 3], [0, 5, 3, 4], [0, 3, 4, 0]],
+        ["dorian"] = [[0, 3, 6, 4], [0, 4, 3, 6], [0, 6, 4, 0]],
+        ["phrygian"] = [[0, 6, 5, 0], [0, 1, 5, 0], [0, 6, 3, 6]],
+        ["lydian"] = [[0, 4, 1, 5], [0, 5, 4, 0], [0, 1, 4, 5]],
+        ["mixolydian"] = [[0, 6, 3, 0], [0, 4, 6, 3], [0, 5, 4, 0]],
+        ["aeolian"] = [[0, 5, 2, 6], [0, 6, 5, 6], [0, 3, 6, 5]],
+        ["locrian"] = [[0, 1, 5, 0], [0, 4, 1, 5], [0, 5, 4, 1]],
+        ["harmonic-minor"] = [[0, 5, 6, 0], [0, 3, 4, 0], [0, 6, 5, 0]],
+        ["melodic-minor"] = [[0, 4, 3, 6], [0, 5, 2, 0], [0, 3, 4, 6]]
+    };
 
     public static ArrangementPlan Create(MusicProject project, MusicGenerationRequest request, int seed)
     {
-        var keyName = request.PreferredKey ?? SelectKey(project, seed);
-        if (!MusicKey.TryParse(keyName, out var key))
+        var selectedKey = request.PreferredKey;
+        var root = selectedKey is not null && MusicKey.TryParseRoot(selectedKey, out var preferredRoot)
+            ? preferredRoot
+            : unchecked((int)((uint)seed % 12));
+        var parsedKey = selectedKey is not null && MusicKey.TryParse(selectedKey, out var fullKey)
+            ? fullKey
+            : (MusicKey?)null;
+
+        var scaleName = request.PreferredScale
+            ?? (parsedKey is not null
+                ? MusicalScaleCatalog.DefaultFor(parsedKey.Value.IsMinor)
+                : SelectScale(project, seed));
+        var scale = MusicalScaleCatalog.GetRequired(scaleName);
+        var keyName = $"{MusicalScaleCatalog.PitchClassNames[root]} {(scale.MinorColor ? "minor" : "major")}";
+        var tempo = request.PreferredTempoBpm ?? SelectTempo(project, seed);
+        var style = ArrangementStyleCatalog.ForProject(project);
+        var positiveSeed = unchecked((uint)seed);
+        var patterns = Progressions[scale.Name];
+        var firstPatternIndex = (int)(positiveSeed % (uint)patterns.Length);
+        var secondPatternIndex = (int)((positiveSeed >> 4) % (uint)patterns.Length);
+        if (secondPatternIndex == firstPatternIndex)
         {
-            throw new MusicGenerationException(
-                "unsupported_music_preferences",
-                "The selected key is not supported.",
-                isTransient: false);
+            secondPatternIndex = (secondPatternIndex + 1) % patterns.Length;
         }
 
-        var tempo = request.PreferredTempoBpm ?? SelectTempo(project);
-        var progressions = key.IsMinor ? MinorProgressions : MajorProgressions;
-        var qualities = key.IsMinor ? MinorQualities : MajorQualities;
-        var positiveSeed = unchecked((uint)seed);
-        var progression = progressions[(int)(positiveSeed % (uint)progressions.Length)];
-        var rotation = (int)((positiveSeed >> 3) % (uint)progression.Length);
-        var chords = Enumerable.Range(0, progression.Length)
-            .Select(index =>
-            {
-                var degree = progression[(index + rotation) % progression.Length];
-                var root = (key.RootPitchClass + key.Scale[degree]) % 12;
-                return PitchClassNames[root] + qualities[degree];
-            })
-            .ToArray();
+        var firstRotation = (int)((positiveSeed >> 8) % 4);
+        var secondRotation = (int)((positiveSeed >> 12) % 4);
+        var chordDegrees = patterns[firstPatternIndex].Skip(firstRotation)
+            .Concat(patterns[firstPatternIndex].Take(firstRotation))
+            .Concat(patterns[secondPatternIndex].Skip(secondRotation))
+            .Concat(patterns[secondPatternIndex].Take(secondRotation));
+        var chords = chordDegrees.Select(degree => scale.BuildDiatonicTriad(root, degree)).ToArray();
 
         return new ArrangementPlan(1, tempo, keyName, chords, seed)
         {
-            UsedAI = false
+            UsedAI = false,
+            Scale = scale.Name,
+            Groove = style.Groove,
+            InstrumentSet = style.InstrumentSet
         };
     }
 
-    private static string SelectKey(MusicProject project, int seed)
+    private static string SelectScale(MusicProject project, int seed)
     {
-        var context = $"{project.Genre} {project.Mood}".ToLowerInvariant();
-        var preferMinor = ContainsAny(context, "lofi", "ambient", "calm", "chill", "sad", "dark", "relax", "triste", "melancol");
-        var root = (int)(unchecked((uint)seed) % 12);
-        return $"{PitchClassNames[root]} {(preferMinor ? "minor" : "major")}";
+        var candidates = MusicalScaleCatalog.SelectFor(project.Genre, project.Mood);
+        var index = (int)(unchecked((uint)seed >> 2) % (uint)candidates.Count);
+        return candidates[index];
     }
 
-    private static int SelectTempo(MusicProject project)
+    private static int SelectTempo(MusicProject project, int seed)
     {
         var genre = project.Genre.ToLowerInvariant();
         var mood = project.Mood?.ToLowerInvariant() ?? string.Empty;
+        var offset = (int)(unchecked((uint)seed >> 5) % 13);
         if (ContainsAny(mood, "energetic", "upbeat", "intense", "energético", "animado"))
         {
-            return 116;
+            return 108 + offset;
         }
 
-        if (ContainsAny(genre, "lofi", "ambient", "classical") || ContainsAny(mood, "calm", "chill", "relax", "calmado", "tranquilo"))
+        if (ContainsAny(mood, "calm", "chill", "relax", "calmado", "tranquilo", "sleep"))
         {
-            return 78;
+            return 66 + offset;
         }
 
-        if (ContainsAny(genre, "dance", "electronic", "house", "techno"))
+        if (ContainsAny(genre, "house", "dance", "techno", "electronic"))
         {
-            return 120;
+            return 108 + offset;
         }
 
-        if (ContainsAny(genre, "rock", "metal", "punk"))
+        if (ContainsAny(genre, "lofi", "lo-fi", "ambient", "classical", "cinematic"))
         {
-            return 112;
+            return 70 + offset;
         }
 
-        return 92;
+        if (ContainsAny(genre, "rock", "metal", "punk", "pop"))
+        {
+            return 92 + offset;
+        }
+
+        return 82 + offset;
     }
 
     private static bool ContainsAny(string value, params string[] terms) =>

@@ -1,6 +1,6 @@
 # MelodyFlow
 
-> **Status — first music pipeline implementation:** The API supports project/job operations plus generated track lookup/download. The WebApp offers a genre, mood and duration form, submits projects and music jobs, and reports progress and API errors. The Worker defaults to deterministic C# composition and offers an opt-in local LM Studio arrangement proposal; both paths render MIDI through FluidSynth and FFmpeg. All four migrations, including the track's `used_ai` column, are applied to the local PostgreSQL database. A real audio render still depends on local audio tools and a SoundFont; LM Studio/model setup is needed only when `useAI` is enabled.
+> **Status — local music/video studio:** The API supports projects, queued music generation, song playback/download, manual MP4 clip import and one-clip/one-song video renders. The WebApp shows saved songs, polls active job progress every two seconds, and includes clip import, render selection and MP4 playback/download. The Worker defaults to deterministic C# composition and offers an opt-in local LM Studio arrangement proposal; a new five-track MIDI composer supports 108 root/scale combinations, multiple grooves and instrument sets. Migration `AddVisualAssetsAndRenderedVideos` is applied to the local database; a real imported-clip render is still to be verified.
 
 MelodyFlow is a C#/.NET 10 music composition and video production platform. By default, deterministic C# rules choose musical arrangements; an optional AI planner can propose them when selected per job. The MIDI composer creates notes, FluidSynth renders audio from a SoundFont, FFmpeg encodes media, and a background Worker runs jobs. It is **not** an AI audio-generation model. YouTube publication is a later optional module.
 
@@ -27,9 +27,11 @@ MelodyFlow is a C#/.NET 10 music composition and video production platform. By d
 3. The Worker claims supported work with PostgreSQL row locks and renewable leases, then applies bounded retries and cancellation. It registers the music handler when the SoundFont/license reference and audio executables are configured; a local model is needed only for jobs with `useAI: true`.
 4. With the checkbox clear, C# builds a deterministic arrangement. If selected, local **LM Studio** supplies the arrangement proposal; the same C# MIDI composer and audio renderer then continue the pipeline.
 5. FluidSynth renders WAV from `FluidR3_GM.sf2`, FFmpeg encodes MP3, and FFprobe records the measured duration. PostgreSQL stores track metadata and a relative `StorageKey`; audio files stay in the configured media folder.
-6. `GET /api/v1/generation-jobs/{id}/track` returns the track and its audio route; `GET /api/v1/music-tracks/{id}/audio` streams the MP3.
-7. n8n coordinates schedules/status/notifications through the local API. n8n is not the media renderer and must not connect to PostgreSQL directly.
-8. YouTube publishing later uses official OAuth 2.0 and the YouTube Data API; uploads private first for review.
+6. `GET /api/v1/generation-jobs/{id}/track` returns the track and its audio route; `GET /api/v1/music-tracks?page=1&pageSize=20` supplies the saved-song library; `GET /api/v1/music-tracks/{id}/audio` streams the MP3.
+7. The user can import a Google Flow MP4 through the API. The clip is saved in `video-clips/`; PostgreSQL stores its metadata and relative key only.
+8. The user selects one saved song and one imported clip. The API queues a Render job; the Worker reports FFmpeg progress, combines/loops the MP4 to the song duration, stores the output under `videos/`, and saves render metadata. The WebApp polls the job and plays/downloads the finished MP4.
+9. n8n coordinates schedules/status/notifications through the local API. n8n is not the media renderer and must not connect to PostgreSQL directly.
+10. YouTube publishing later uses official OAuth 2.0 and the YouTube Data API; uploads private first for review.
 
 ## Non-goals and explicit decisions
 
@@ -43,14 +45,15 @@ MelodyFlow is a C#/.NET 10 music composition and video production platform. By d
 
 .NET 10 SDK, Visual Studio 2026, Docker Desktop, PostgreSQL, FluidSynth, FFmpeg/FFprobe, and a locally obtained SoundFont with its license notice. LM Studio and a loaded model are optional unless `useAI` is enabled. Keep local binaries and credentials out of Git.
 
+Configure PostgreSQL, media storage, temporary files, audio tools and the optional local planner through each app's local launch profile. Keep machine-specific paths, credentials and internal setup notes out of the public repository. The video metadata migration is applied to the current local database.
+
 ## Where to start
 
-1. Read [`docs/DOCUMENTATION-MAP.md`](docs/DOCUMENTATION-MAP.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and [`docs/DECISIONS.md`](docs/DECISIONS.md).
-2. The solution includes WebApp, API, Application, Domain, Infrastructure, Contracts, Worker and Tests; see each project README for its current state.
-3. Review [`docs/DATABASE-EFCORE.md`](docs/DATABASE-EFCORE.md) for the local database state and connection setup. All four current migrations are applied locally. Inspect migration history before updating a different database.
-4. Review `docs/SETUP-DEPLOYMENT.md` to configure the shared media storage root, local planner model and audio executables. Apply migrations only after reviewing their SQL and deciding to update your database.
-5. Use the project, generation-job and music-track API contracts to prepare the local n8n workflow. The API has no authentication and must stay local.
+1. Read `AGENTS.md` before changing the code.
+2. The solution includes WebApp, API, Application, Domain, Infrastructure, Contracts, Worker and Tests; their responsibilities are summarized above.
+3. Configure local secrets and machine-specific paths in ignored launch profiles. Review migration SQL and database history before updating another database.
+4. The API has no authentication and must stay local. Use its project, generation-job and music-track endpoints to connect an optional local n8n workflow.
 
 ## Security & contributions
 
-Follow [`AGENTS.md`](AGENTS.md), [`docs/SECURITY-AND-RIGHTS.md`](docs/SECURITY-AND-RIGHTS.md), [`docs/TESTING.md`](docs/TESTING.md) and [`docs/SETUP-DEPLOYMENT.md`](docs/SETUP-DEPLOYMENT.md). For every change: inspect existing code; propose a plan and diff; never overwrite user files or apply schema changes without approval; run relevant tests and report results honestly.
+Follow [`AGENTS.md`](AGENTS.md). For every change: inspect existing code, preserve user files, review schema changes before applying them, run relevant tests and report results honestly. Verify current licenses for the selected model, SoundFont and media tools before publication.

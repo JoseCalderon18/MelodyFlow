@@ -13,4 +13,7 @@ public interface IArtifactStorage
 
     /// <summary>Comprueba si existe un archivo asociado a la clave.</summary>
     Task<bool> ExistsAsync(string storageKey, CancellationToken cancellationToken);
+
+    /// <summary>Elimina un archivo asociado a una clave después de un fallo compensable.</summary>
+    Task DeleteAsync(string storageKey, CancellationToken cancellationToken);
 }

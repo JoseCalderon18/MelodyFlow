@@ -15,6 +15,12 @@ internal sealed record ArrangementPlan(
 {
     [JsonPropertyName("usedAI")]
     public bool UsedAI { get; init; }
+
+    public string Scale { get; init; } = string.Empty;
+
+    public string Groove { get; init; } = string.Empty;
+
+    public string InstrumentSet { get; init; } = string.Empty;
 }
 
 internal static partial class ArrangementPlanParser
@@ -47,7 +53,7 @@ internal static partial class ArrangementPlanParser
             throw new InvalidDataException("Tempo must be between 50 and 180 BPM.");
         }
 
-        if (!MusicKey.TryParse(plan.Key, out _))
+        if (!MusicKey.TryParse(plan.Key, out var key))
         {
             throw new InvalidDataException("Key must be a supported major or minor musical key.");
         }
@@ -57,7 +63,27 @@ internal static partial class ArrangementPlanParser
             throw new InvalidDataException("The arrangement must contain 1 to 16 supported chord symbols.");
         }
 
-        return plan;
+        var scaleName = string.IsNullOrWhiteSpace(plan.Scale)
+            ? MusicalScaleCatalog.DefaultFor(key.IsMinor)
+            : plan.Scale;
+        if (!MusicalScaleCatalog.TryGet(scaleName, out var scale))
+        {
+            throw new InvalidDataException("Scale must be one of the supported seven-note modes.");
+        }
+
+        var groove = string.IsNullOrWhiteSpace(plan.Groove) ? "backbeat" : plan.Groove;
+        if (!ArrangementStyleCatalog.IsSupportedGroove(groove))
+        {
+            throw new InvalidDataException("The arrangement groove is not supported.");
+        }
+
+        var instrumentSet = string.IsNullOrWhiteSpace(plan.InstrumentSet) ? "acoustic" : plan.InstrumentSet;
+        if (!ArrangementStyleCatalog.IsSupportedInstrumentSet(instrumentSet))
+        {
+            throw new InvalidDataException("The arrangement instrument set is not supported.");
+        }
+
+        return plan with { Scale = scale.Name, Groove = groove, InstrumentSet = instrumentSet };
     }
 
     [GeneratedRegex("^(?<root>[A-G](?:#|b)?)\\s+(?<mode>major|minor)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -71,6 +97,8 @@ internal readonly record struct MusicKey(int RootPitchClass, bool IsMinor)
     private static readonly int[] MinorScale = [0, 2, 3, 5, 7, 8, 10];
 
     public IReadOnlyList<int> Scale => IsMinor ? MinorScale : MajorScale;
+
+    public static string PitchClassName(int pitchClass) => Notes[((pitchClass % 12) + 12) % 12];
 
     /// <summary>Convierte una tonalidad escrita, por ejemplo «A minor», a raíz y escala.</summary>
     public static bool TryParse(string? value, out MusicKey key)
@@ -89,6 +117,15 @@ internal readonly record struct MusicKey(int RootPitchClass, bool IsMinor)
 
         key = new MusicKey(pitchClass, string.Equals(match.Groups["mode"].Value, "minor", StringComparison.OrdinalIgnoreCase));
         return true;
+    }
+
+    /// <summary>Parses a single chromatic root such as C, F# or Bb.</summary>
+    public static bool TryParseRoot(string value, out int pitchClass)
+    {
+        pitchClass = -1;
+        var normalized = value.Trim();
+        return Regex.IsMatch(normalized, "^[A-G](?:#|b)?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) &&
+            TryParsePitchClass(normalized, out pitchClass);
     }
 
     /// <summary>Obtiene una nota MIDI de la escala, también para grados fuera de la primera octava.</summary>
@@ -151,6 +188,14 @@ internal readonly record struct Chord(int RootPitchClass, IReadOnlyList<int> Int
         ["6"] = [0, 4, 7, 9],
         ["m6"] = [0, 3, 7, 9]
     };
+
+    public string TransposeSymbol(int semitones)
+    {
+        var intervals = Intervals;
+        var quality = Qualities.First(pair => pair.Value.SequenceEqual(intervals)).Key;
+        var transposedRoot = ((RootPitchClass + semitones) % 12 + 12) % 12;
+        return MusicKey.PitchClassName(transposedRoot) + quality;
+    }
 
     /// <summary>Interpreta la raíz y calidad de un acorde y devuelve sus intervalos en semitonos.</summary>
     public static bool TryParse(string? value, out Chord chord)

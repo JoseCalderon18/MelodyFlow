@@ -44,9 +44,13 @@ internal sealed class OpenAiCompatibleArrangementPlanner(
                 new
                 {
                     role = "system",
-                    content = "You are a harmony assistant. Return one JSON object only. Follow this exact schema: " +
-                        "{\"schemaVersion\":1,\"tempoBpm\":80,\"key\":\"A minor\",\"chords\":[\"Am7\",\"Dm7\",\"G7\",\"Cmaj7\"],\"variationSeed\":123}. " +
-                        "Use a tempo from 50 to 180 BPM, a major or minor key, and 1 to 16 chord symbols. " +
+                    content = "You are a harmony and arrangement planner. Return one JSON object only. Follow this exact schema: " +
+                        "{\"schemaVersion\":1,\"tempoBpm\":96,\"key\":\"A minor\",\"scale\":\"dorian\",\"groove\":\"lofi\",\"instrumentSet\":\"lofi\",\"chords\":[\"Am7\",\"Dm7\",\"Gmaj7\",\"Em7\"],\"variationSeed\":123}. " +
+                        "Use a tempo from 50 to 180 BPM, a supported major/minor tonal center, and 4 to 16 chord symbols. " +
+                        "Supported seven-note scales: ionian, dorian, phrygian, lydian, mixolydian, aeolian, locrian, harmonic-minor, melodic-minor. " +
+                        "Supported grooves: ambient, lofi, backbeat, four-on-floor, cinematic. " +
+                        "Supported instrumentSet values: ambient, lofi, pop, electronic, cinematic, rock, acoustic. " +
+                        "Choose scale, groove and timbres that fit the supplied genre and mood; do not use one identical progression for every request. " +
                         "Supported chord suffixes are empty, maj, m, min, dim, aug, sus2, sus4, 7, maj7, m7, min7, m7b5, dim7, 6, m6."
                 },
                 new
@@ -60,7 +64,8 @@ internal sealed class OpenAiCompatibleArrangementPlanner(
                         targetDurationSeconds = project.TargetDurationSeconds,
                         variationSeed = seed,
                         preferredTempoBpm = requestOptions.PreferredTempoBpm,
-                        preferredKey = requestOptions.PreferredKey
+                        preferredKey = requestOptions.PreferredKey,
+                        preferredScale = requestOptions.PreferredScale
                     }, JsonOptions)
                 }
             },
@@ -128,7 +133,7 @@ internal sealed class OpenAiCompatibleArrangementPlanner(
 
                 // La respuesta externa se valida otra vez antes de llegar al compositor MIDI.
                 var plan = ArrangementPlanParser.Parse(content);
-                return plan with { VariationSeed = seed, UsedAI = true };
+                return ApplyUserPreferences(plan, requestOptions, seed);
             }
             catch (Exception exception) when (exception is JsonException or InvalidDataException or InvalidOperationException or KeyNotFoundException)
             {
@@ -149,6 +154,47 @@ internal sealed class OpenAiCompatibleArrangementPlanner(
                 ? normalized
                 : $"{normalized}/chat/completions",
             UriKind.Absolute);
+    }
+
+    private static ArrangementPlan ApplyUserPreferences(
+        ArrangementPlan plan,
+        MusicGenerationRequest request,
+        int seed)
+    {
+        _ = MusicKey.TryParse(plan.Key, out var originalKey);
+        var root = originalKey.RootPitchClass;
+        var requestedFullKey = default(MusicKey);
+        var explicitFullKey = request.PreferredKey is not null &&
+            MusicKey.TryParse(request.PreferredKey, out requestedFullKey);
+        var requestedRoot = 0;
+        var explicitRoot = request.PreferredKey is not null &&
+            MusicKey.TryParseRoot(request.PreferredKey, out requestedRoot);
+        if (explicitRoot)
+        {
+            root = requestedRoot;
+        }
+
+        var scaleName = request.PreferredScale ??
+            (explicitFullKey
+                ? MusicalScaleCatalog.DefaultFor(requestedFullKey.IsMinor)
+                : plan.Scale);
+        var scale = MusicalScaleCatalog.GetRequired(scaleName);
+        var keyName = $"{MusicalScaleCatalog.PitchClassNames[root]} {(scale.MinorColor ? "minor" : "major")}";
+        var shift = (root - originalKey.RootPitchClass + 12) % 12;
+        var chords = shift == 0
+            ? plan.Chords
+            : plan.Chords.Select(symbol => Chord.TryParse(symbol, out var chord)
+                ? chord.TransposeSymbol(shift)
+                : throw new InvalidDataException("The arrangement contains an unsupported chord.")).ToArray();
+
+        return plan with
+        {
+            VariationSeed = seed,
+            UsedAI = true,
+            Key = keyName,
+            Chords = chords,
+            Scale = scale.Name
+        };
     }
 
 }

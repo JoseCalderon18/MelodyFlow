@@ -1,6 +1,41 @@
 @inherits LayoutComponentBase
 
-@Body
+<div class="studio-layout">
+    <aside class="studio-sidebar">
+        <a class="sidebar-brand" href="/" aria-label="MelodyFlow, inicio">
+            <span class="brand-mark">♫</span>
+            <span>melodyflow<small>CREATIVE STUDIO</small></span>
+        </a>
+
+        <div class="sidebar-caption">ESPACIO DE TRABAJO</div>
+        <nav class="studio-navigation" aria-label="Navegación principal">
+            <a class="studio-nav-link active" href="/#overview"><span>◫</span>Resumen</a>
+            <a class="studio-nav-link" href="/#music"><span>♫</span>Mi música</a>
+            <a class="studio-nav-link" href="/#projects"><span>▧</span>Proyectos</a>
+        </nav>
+
+        <div class="sidebar-caption library-caption">BIBLIOTECA</div>
+        <nav class="studio-navigation" aria-label="Biblioteca de medios">
+            <a class="studio-nav-link" href="/#videos"><span>▣</span>Vídeos <em>PRONTO</em></a>
+            <a class="studio-nav-link" href="/#clips"><span>◩</span>Videoclips <em>PRONTO</em></a>
+        </nav>
+
+        <div class="sidebar-spacer"></div>
+        <div class="storage-card">
+            <span class="storage-indicator"></span>
+            <div><strong>Almacenamiento local</strong><small>Disco externo · MelodyFlow</small></div>
+        </div>
+        <div class="sidebar-footer">MELODYFLOW <span>·</span> ESTUDIO LOCAL</div>
+    </aside>
+
+    <div class="studio-canvas">
+        <header class="studio-topbar">
+            <div class="topbar-location"><span>Workspace</span><b>/</b><strong>Resumen</strong></div>
+            <div class="topbar-actions"><span class="local-badge"><i></i> ESTUDIO LOCAL</span><a class="topbar-create" href="/#create">＋ Nueva canción</a></div>
+        </header>
+        <div class="studio-content">@Body</div>
+    </div>
+</div>
 
 <div id="blazor-error-ui" data-nosnippet>
     Ha ocurrido un error inesperado.

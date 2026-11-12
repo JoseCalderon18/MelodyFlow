@@ -269,6 +269,174 @@ namespace MelodyFlow.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MelodyFlow.Domain.Entities.RenderedVideo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Codec")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("codec");
+
+                    b.Property<string>("ContainerFormat")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("container_format");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long>("DurationMs")
+                        .HasColumnType("bigint")
+                        .HasColumnName("duration_ms");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("file_size_bytes");
+
+                    b.Property<int>("HeightPx")
+                        .HasColumnType("integer")
+                        .HasColumnName("height_px");
+
+                    b.Property<Guid>("MusicProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("music_project_id");
+
+                    b.Property<Guid>("MusicTrackId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("music_track_id");
+
+                    b.Property<Guid>("RenderJobId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("render_job_id");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasColumnName("storage_key");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<Guid>("VisualAssetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("visual_asset_id");
+
+                    b.Property<int>("WidthPx")
+                        .HasColumnType("integer")
+                        .HasColumnName("width_px");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MusicTrackId");
+
+                    b.HasIndex("RenderJobId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_rendered_videos_render_job_id");
+
+                    b.HasIndex("VisualAssetId");
+
+                    b.HasIndex("MusicProjectId", "CreatedAt")
+                        .HasDatabaseName("ix_rendered_videos_project_created_at");
+
+                    b.ToTable("rendered_videos", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_rendered_videos_media_positive", "duration_ms > 0 AND width_px > 0 AND height_px > 0 AND file_size_bytes > 0");
+                        });
+                });
+
+            modelBuilder.Entity("MelodyFlow.Domain.Entities.VisualAsset", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AssetType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("asset_type");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("DurationMs")
+                        .HasColumnType("bigint")
+                        .HasColumnName("duration_ms");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("file_size_bytes");
+
+                    b.Property<Guid?>("GenerationJobId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("generation_job_id");
+
+                    b.Property<int?>("HeightPx")
+                        .HasColumnType("integer")
+                        .HasColumnName("height_px");
+
+                    b.Property<bool>("IsManualUpload")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_manual_upload");
+
+                    b.Property<Guid?>("MusicProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("music_project_id");
+
+                    b.Property<string>("ProviderName")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("provider_name");
+
+                    b.Property<string>("RightsEvidenceKey")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasColumnName("rights_evidence_key");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasColumnName("storage_key");
+
+                    b.Property<int?>("WidthPx")
+                        .HasColumnType("integer")
+                        .HasColumnName("width_px");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GenerationJobId");
+
+                    b.HasIndex("MusicProjectId", "CreatedAt")
+                        .HasDatabaseName("ix_visual_assets_project_created_at");
+
+                    b.ToTable("visual_assets", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_visual_assets_dimensions_positive", "(width_px IS NULL AND height_px IS NULL) OR (width_px > 0 AND height_px > 0)");
+
+                            t.HasCheckConstraint("ck_visual_assets_duration_positive", "duration_ms IS NULL OR duration_ms > 0");
+
+                            t.HasCheckConstraint("ck_visual_assets_file_size_positive", "file_size_bytes > 0");
+                        });
+                });
+
             modelBuilder.Entity("MelodyFlow.Domain.Entities.GenerationJob", b =>
                 {
                     b.HasOne("MelodyFlow.Domain.Entities.MusicProject", null)
@@ -279,6 +447,46 @@ namespace MelodyFlow.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("MelodyFlow.Domain.Entities.MusicTrack", b =>
+                {
+                    b.HasOne("MelodyFlow.Domain.Entities.GenerationJob", null)
+                        .WithMany()
+                        .HasForeignKey("GenerationJobId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MelodyFlow.Domain.Entities.MusicProject", null)
+                        .WithMany()
+                        .HasForeignKey("MusicProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MelodyFlow.Domain.Entities.RenderedVideo", b =>
+                {
+                    b.HasOne("MelodyFlow.Domain.Entities.MusicProject", null)
+                        .WithMany()
+                        .HasForeignKey("MusicProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MelodyFlow.Domain.Entities.MusicTrack", null)
+                        .WithMany()
+                        .HasForeignKey("MusicTrackId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MelodyFlow.Domain.Entities.GenerationJob", null)
+                        .WithMany()
+                        .HasForeignKey("RenderJobId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MelodyFlow.Domain.Entities.VisualAsset", null)
+                        .WithMany()
+                        .HasForeignKey("VisualAssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MelodyFlow.Domain.Entities.VisualAsset", b =>
                 {
                     b.HasOne("MelodyFlow.Domain.Entities.GenerationJob", null)
                         .WithMany()

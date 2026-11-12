@@ -1,43 +1,179 @@
 @page "/"
-<PageTitle>MelodyFlow Studio</PageTitle>
-<div class="studio-shell">
-    <header class="studio-topbar"><a class="brand" href="/"><span class="brand-mark">♫</span> melodyflow <span class="brand-light">studio</span></a><span class="local-badge"><i></i> ESTUDIO LOCAL</span></header>
-    <main class="studio-main">
-        <section class="hero">
-            <div><p class="eyebrow">TU IDEA, EN FORMA DE MÚSICA</p><h1>Crea la banda sonora<br />de lo que imaginas.</h1><p class="hero-subtitle">Elige un estilo, define el ambiente y genera una pista lista para escuchar.</p><div class="hero-tags"><span>♫ MIDI</span><span>◉ WAV</span><span>↓ MP3</span></div></div>
-            <div class="hero-art" aria-hidden="true"><div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div><div class="art-disc">♫</div><div class="wave-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="art-caption">SOUND IN MOTION</span></div>
-        </section>
-        <div class="workspace-grid">
-            <section class="creation-panel">
-                <div class="panel-heading"><div><p class="eyebrow">NUEVA CREACIÓN</p><h2>Diseña tu pista</h2></div><span class="step-pill">01 <span>/</span> 01</span></div>
-                <EditForm Model="form" OnValidSubmit="CreateAsync" class="creation-form">
-                    <DataAnnotationsValidator />
-                    <div class="field-block"><label for="title">Nombre del proyecto</label><InputText id="title" class="studio-input" placeholder="Ej. Luces de medianoche" @bind-Value="form.Title" disabled="@submitting" /><ValidationMessage For="@(() => form.Title)" /></div>
-                    <div class="field-row">
-                        <div class="field-block"><label for="genre">Género</label><InputSelect id="genre" class="studio-input" @bind-Value="form.Genre" disabled="@submitting">
-                            <option value="">Selecciona un género</option><option value="lofi">Lo-fi</option><option value="ambient">Ambient</option><option value="electronic">Electrónica</option><option value="classical">Clásica</option><option value="jazz">Jazz</option><option value="hip-hop">Hip-hop</option><option value="rock">Rock</option><option value="cinematic">Cinemática</option><option value="orchestral">Orquestal</option><option value="pop">Pop</option><option value="latin">Latina</option><option value="rnb">R&amp;B</option>
-                        </InputSelect><ValidationMessage For="@(() => form.Genre)" /></div>
-                        <div class="field-block"><label for="mood">Ambiente</label><InputSelect id="mood" class="studio-input" @bind-Value="form.Mood" disabled="@submitting"><option value="">Elige un ambiente</option><option value="calm">Tranquilo</option><option value="focused">Enfocado</option><option value="energetic">Enérgico</option><option value="dark">Oscuro</option><option value="uplifting">Optimista</option><option value="romantic">Romántico</option><option value="epic">Épico</option><option value="dreamy">Onírico</option><option value="relaxing">Relajante</option></InputSelect></div>
-                    </div>
-                    <div class="field-block"><div class="label-line"><label for="duration">Duración</label><span class="field-hint">Puedes cambiarla luego</span></div><InputSelect id="duration" class="studio-input" @bind-Value="form.TargetDurationSeconds" disabled="@submitting"><option value="30">30 segundos · prueba rápida</option><option value="60">1 minuto</option><option value="120">2 minutos</option><option value="180">3 minutos</option><option value="300">5 minutos</option><option value="480">8 minutos</option></InputSelect></div>
-                    <div class="ai-option"><div class="ai-icon">✳</div><div class="ai-copy"><strong>Plan de armonía con IA</strong><span>Desactivado: C# crea el arreglo con reglas musicales. Actívalo para pedir una propuesta a LM Studio.</span></div><InputCheckbox id="use-ai" class="studio-toggle" @bind-Value="form.UseAI" disabled="@submitting" /></div>
-                    <ValidationSummary />
-                    <button class="generate-button" type="submit" disabled="@submitting">@if (submitting) { <span class="button-spinner"></span><span>Enviando solicitud…</span> } else { <span>♫</span><span>@(project is null ? "Crear proyecto y generar" : "Reintentar generación")</span><span class="button-arrow">→</span> }</button>
-                    <p class="form-footnote">@(project is null ? "Se guardará el proyecto y la solicitud de generación." : "El proyecto ya está guardado; reintentaremos solo la solicitud.")</p>
-                </EditForm>
-            </section>
-            <aside class="side-column"><section class="info-card"><p class="eyebrow">ASÍ FUNCIONA</p><h3>De la idea a la pista</h3><ol class="process-list"><li><span>1</span><div><strong>Defines el sonido</strong><small>Género, ambiente y duración.</small></div></li><li><span>2</span><div><strong>Se prepara el arreglo</strong><small>Con reglas C# o con el plan opcional de IA.</small></div></li><li><span>3</span><div><strong>Se renderiza el audio</strong><small>El Worker convierte el arreglo en una pista.</small></div></li></ol></section><section class="quote-card"><span class="quote-mark">“</span><p>Empieza con una idea sencilla.<br />El sonido lo construimos paso a paso.</p><div class="quote-rule"></div><span class="quote-signature">MELODYFLOW / 01</span></section></aside>
+<PageTitle>Resumen · MelodyFlow</PageTitle>
+
+<main class="dashboard-page" id="overview">
+    <section class="welcome-banner">
+        <div class="welcome-copy">
+            <p class="eyebrow">TU ESTUDIO CREATIVO</p>
+            <h1>Todo lo que creas,<br /><span>en un mismo lugar.</span></h1>
+            <p>Genera música, sigue tus proyectos y encuentra tus pistas sin perder el hilo.</p>
+            <a class="hero-action" href="#create">Crear una canción <span>→</span></a>
         </div>
-        @if (!string.IsNullOrWhiteSpace(errorMessage)) { <div class="result-alert error-alert" role="alert"><span class="alert-symbol">!</span><div><strong>No se pudo completar la solicitud</strong><p>@errorMessage</p></div></div> }
-        @if (job is not null)
+        <div class="welcome-art" aria-hidden="true">
+            <div class="welcome-glow"></div>
+            <div class="vinyl-record"><div class="vinyl-label">♫</div></div>
+            <div class="sound-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <span class="art-note note-one">♪</span><span class="art-note note-two">♫</span>
+        </div>
+        <div class="banner-index">01 <span>—</span> 04</div>
+    </section>
+
+    <section class="stats-grid" aria-label="Resumen de tu biblioteca">
+        <article class="stat-card stat-purple"><span class="stat-icon">♫</span><div><small>CANCIONES</small><strong>@trackCount</strong><span>pistas listas para escuchar</span></div><a href="#music" aria-label="Ver canciones">↗</a></article>
+        <article class="stat-card stat-mint"><span class="stat-icon">▧</span><div><small>PROYECTOS</small><strong>@projectCount</strong><span>ideas guardadas</span></div><a href="#projects" aria-label="Ver proyectos">↗</a></article>
+        <article class="stat-card stat-blue"><span class="stat-icon">▣</span><div><small>VIDEOCLIPS</small><strong>@renderedVideoCount</strong><span>vídeos terminados</span></div><a href="#videos" aria-label="Ver videoclips">↗</a></article>
+        <article class="stat-card stat-orange"><span class="stat-icon">◩</span><div><small>CLIPS</small><strong>@visualAssetCount</strong><span>recursos importados</span></div><a href="#clips" aria-label="Ver clips">↗</a></article>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(loadError))
+    {
+        <div class="dashboard-alert" role="alert"><span>!</span><div><strong>No se pudo cargar la biblioteca</strong><p>@loadError</p></div><button class="quiet-button" @onclick="LoadDashboardAsync">Volver a intentar</button></div>
+    }
+
+    <div class="dashboard-grid">
+        <section class="creation-panel dashboard-panel" id="create">
+            <div class="section-heading compact-heading">
+                <div><p class="eyebrow">EMPIEZA ALGO NUEVO</p><h2>Crear una canción</h2></div>
+                <span class="heading-orb">♫</span>
+            </div>
+            <EditForm Model="form" OnValidSubmit="CreateAsync" FormName="CreateMusicProject" class="creation-form">
+                <DataAnnotationsValidator />
+                <div class="field-block"><label for="title">Nombre del proyecto</label><InputText id="title" class="studio-input" placeholder="Ej. Luces de medianoche" @bind-Value="form.Title" disabled="@submitting" /><ValidationMessage For="@(() => form.Title)" /></div>
+                <div class="field-row">
+                    <div class="field-block"><label for="genre">Género</label><InputSelect id="genre" class="studio-input" @bind-Value="form.Genre" disabled="@submitting">
+                        <option value="">Selecciona un género</option><option value="lofi">Lo-fi</option><option value="ambient">Ambient</option><option value="electronic">Electrónica</option><option value="classical">Clásica</option><option value="jazz">Jazz</option><option value="hip-hop">Hip-hop</option><option value="rock">Rock</option><option value="cinematic">Cinemática</option><option value="orchestral">Orquestal</option><option value="pop">Pop</option><option value="latin">Latina</option><option value="rnb">R&amp;B</option>
+                    </InputSelect><ValidationMessage For="@(() => form.Genre)" /></div>
+                    <div class="field-block"><label for="mood">Ambiente</label><InputSelect id="mood" class="studio-input" @bind-Value="form.Mood" disabled="@submitting"><option value="">Elige un ambiente</option><option value="calm">Tranquilo</option><option value="focused">Enfocado</option><option value="energetic">Enérgico</option><option value="dark">Oscuro</option><option value="uplifting">Optimista</option><option value="romantic">Romántico</option><option value="epic">Épico</option><option value="dreamy">Onírico</option><option value="relaxing">Relajante</option></InputSelect></div>
+                </div>
+                <div class="field-row">
+                    <div class="field-block"><label for="music-root">Nota raíz</label><InputSelect id="music-root" class="studio-input" @bind-Value="form.PreferredKey" disabled="@submitting"><option value="">Elegida automáticamente</option><option value="C">Do</option><option value="C#">Do♯ / Re♭</option><option value="D">Re</option><option value="D#">Re♯ / Mi♭</option><option value="E">Mi</option><option value="F">Fa</option><option value="F#">Fa♯ / Sol♭</option><option value="G">Sol</option><option value="G#">Sol♯ / La♭</option><option value="A">La</option><option value="A#">La♯ / Si♭</option><option value="B">Si</option></InputSelect></div>
+                    <div class="field-block"><label for="music-scale">Escala / modo</label><InputSelect id="music-scale" class="studio-input" @bind-Value="form.PreferredScale" disabled="@submitting"><option value="">Elegida según el género</option><option value="ionian">Jónico · mayor</option><option value="dorian">Dórico</option><option value="phrygian">Frigio</option><option value="lydian">Lidio</option><option value="mixolydian">Mixolidio</option><option value="aeolian">Eólico · menor natural</option><option value="locrian">Locrio</option><option value="harmonic-minor">Menor armónica</option><option value="melodic-minor">Menor melódica</option></InputSelect></div>
+                </div>
+                <p class="field-hint">12 notas raíz × 9 escalas = 108 combinaciones. Si las dejas automáticas, C# las elige según género y ambiente.</p>
+                <div class="field-row duration-row">
+                    <div class="field-block"><label for="duration">Duración</label><InputSelect id="duration" class="studio-input" @bind-Value="form.TargetDurationSeconds" disabled="@submitting"><option value="30">30 segundos · prueba rápida</option><option value="60">1 minuto</option><option value="120">2 minutos</option><option value="180">3 minutos</option><option value="300">5 minutos</option><option value="480">8 minutos</option></InputSelect></div>
+                    <div class="ai-option"><div class="ai-icon">✳</div><div class="ai-copy"><strong>Propuesta de IA</strong><span>Desactivada por defecto</span></div><InputCheckbox id="use-ai" class="studio-toggle" @bind-Value="form.UseAI" disabled="@submitting" /></div>
+                </div>
+                <ValidationSummary />
+                <button class="generate-button" type="submit" disabled="@submitting">@if (submitting) { <span class="button-spinner"></span><span>Enviando solicitud…</span> } else { <span>♫</span><span>@(project is null ? "Crear proyecto y generar" : "Reintentar generación")</span><span class="button-arrow">→</span> }</button>
+                <p class="form-footnote">Tu archivo MP3 se guardará en el almacenamiento local de MelodyFlow.</p>
+            </EditForm>
+        </section>
+
+        <section class="projects-panel dashboard-panel" id="projects">
+            <div class="section-heading">
+                <div><p class="eyebrow">TU ACTIVIDAD</p><h2>Proyectos recientes</h2></div>
+                <span class="collection-count">@projectCount proyectos</span>
+            </div>
+            @if (loadingDashboard)
+            {
+                <div class="skeleton-list"><div></div><div></div><div></div></div>
+            }
+            else if (projects.Count == 0)
+            {
+                <div class="empty-projects"><span>▧</span><strong>Aquí empieza tu biblioteca</strong><p>Crea tu primer proyecto y lo verás aparecer aquí.</p></div>
+            }
+            else
+            {
+                <div class="project-list">
+                    @foreach (var item in projects)
+                    {
+                        <article class="project-row"><span class="project-art">@(GenreSymbol(item.Genre))</span><div class="project-info"><strong>@item.Title</strong><span>@DisplayGenre(item.Genre) · @FormatDuration(item.TargetDurationSeconds * 1000L)</span></div><span class="project-date">@item.CreatedAt.ToLocalTime().ToString("dd MMM")</span></article>
+                    }
+                </div>
+                @if (projects.Count < projectCount)
+                {
+                    <div class="project-more"><button class="quiet-button" @onclick="LoadMoreProjectsAsync" disabled="@loadingProjects">@(loadingProjects ? "Cargando…" : "Cargar más proyectos")</button></div>
+                }
+            }
+            <div class="project-footnote"><span class="live-dot"></span> Proyectos guardados en PostgreSQL</div>
+        </section>
+    </div>
+
+    @if (job is not null)
+    {
+        <section class="result-panel dashboard-panel generation-panel" aria-live="polite">
+            <div class="result-heading"><div><p class="eyebrow">TRABAJO @ShortJobId</p><h2>@(job.JobType == "Render" ? "Montando videoclip" : "Generación de música")</h2></div><span class="job-status @StatusClass">@StatusLabel</span></div>
+            <div class="progress-track"><div class="progress-fill" style="width: @(Math.Clamp(job.ProgressPercent, 0, 100))%"></div></div>
+            <p class="result-detail">@StatusDescription <span>@job.ProgressPercent%</span></p>
+            @if (!string.IsNullOrWhiteSpace(job.ErrorMessage)) { <p class="job-error">@job.ErrorMessage</p> }
+            @if (job.Status is "Queued" or "Running" or "Retrying") { <p class="worker-hint">Si permanece en cola, comprueba que <strong>MelodyFlow.Worker</strong> esté iniciado.</p><button class="quiet-button" @onclick="RefreshAsync" disabled="@refreshing">@(refreshing ? "Consultando…" : "Actualizar estado")</button> }
+            @if (track is not null) { <div class="audio-result"><div class="track-art">♫</div><div class="track-details"><strong>@track.Title</strong><span>@(track.UsedAI ? "Propuesta de IA" : "Arreglo determinista")</span></div><audio controls preload="none" src="@Api.GetAudioUri(track.AudioUrl).ToString()"></audio><a class="download-link" href="@Api.GetAudioUri(track.AudioUrl).ToString()" download>Descargar MP3 ↓</a></div> }
+            @if (renderedVideo is not null) { <div class="rendered-video-result"><video controls preload="metadata" src="@Api.GetVideoUri(renderedVideo.VideoUrl).ToString()"></video><div><strong>@renderedVideo.Title</strong><a class="download-link" href="@Api.GetVideoUri(renderedVideo.VideoUrl).ToString()" download>Descargar MP4 ↓</a></div></div> }
+        </section>
+    }
+
+    <section class="library-section" id="music">
+        <div class="section-heading library-heading">
+            <div><p class="eyebrow">TU COLECCIÓN</p><h2>Últimas canciones</h2><p class="section-subtitle">Escucha tus pistas y descarga el MP3 cuando quieras.</p></div>
+            <span class="collection-count">@trackCount pistas</span>
+        </div>
+        @if (loadingTracks && tracks.Count == 0)
         {
-            <section class="result-panel" aria-live="polite"><div class="result-heading"><div><p class="eyebrow">TRABAJO @ShortJobId</p><h2>Tu generación</h2></div><span class="job-status @StatusClass">@StatusLabel</span></div>
-                <div class="progress-track"><div class="progress-fill" style="width: @(Math.Clamp(job.ProgressPercent, 0, 100))%"></div></div><p class="result-detail">@StatusDescription <span>@job.ProgressPercent%</span></p>
-                @if (!string.IsNullOrWhiteSpace(job.ErrorMessage)) { <p class="job-error">@job.ErrorMessage</p> }
-                @if (job.Status is "Queued" or "Running" or "Retrying") { <p class="worker-hint">La solicitud ya llegó a la API. Si permanece en cola, comprueba que <strong>MelodyFlow.Worker</strong> esté iniciado.</p><button class="secondary-button" @onclick="RefreshAsync" disabled="@refreshing">@(refreshing ? "Consultando…" : "Actualizar estado")</button> }
-                @if (track is not null) { <div class="audio-result"><div class="track-art">♫</div><div class="track-details"><strong>@track.Title</strong><span>@project?.Genre · @(track.UsedAI ? "Plan con IA" : "Arreglo determinista")</span></div><audio controls src="@Api.GetAudioUri(track.AudioUrl).ToString()"></audio><a class="download-link" href="@Api.GetAudioUri(track.AudioUrl).ToString()" download>Descargar MP3 ↓</a></div> }
-            </section>
+            <div class="track-skeletons"><div></div><div></div><div></div></div>
         }
-        <footer class="studio-footer"><span>MELODYFLOW STUDIO</span><span>Composición local · Control creativo en tus manos</span></footer>
-    </main>
-</div>
+        else if (tracks.Count == 0)
+        {
+            <div class="empty-library"><div class="empty-vinyl">♫</div><div><strong>Todavía no hay canciones</strong><p>Cuando completes tu primera generación, aparecerá aquí con su reproductor y descarga.</p></div><a href="#create" class="text-link">Crear una canción <span>→</span></a></div>
+        }
+        else
+        {
+            <div class="track-list">
+                @foreach (var item in tracks)
+                {
+                    <article class="track-row">
+                        <div class="album-cover cover-@CoverVariant(item.Id)"><span>♫</span><i></i><i></i><i></i><i></i><i></i></div>
+                        <div class="track-row-info"><strong>@item.Title</strong><span>@ProjectGenre(item.MusicProjectId) · @(item.UsedAI ? "Con propuesta de IA" : "Sin IA") · @FormatDuration(item.DurationMs)</span></div>
+                        <audio controls preload="none" src="@Api.GetAudioUri(item.AudioUrl).ToString()" aria-label="Reproducir @item.Title"></audio>
+                        <a class="download-icon" href="@Api.GetAudioUri(item.AudioUrl).ToString()" download aria-label="Descargar @item.Title">↓</a>
+                    </article>
+                }
+            </div>
+            @if (tracks.Count < trackCount)
+            {
+                <div class="load-more-wrap"><button class="quiet-button" @onclick="LoadMoreTracksAsync" disabled="@loadingTracks">@(loadingTracks ? "Cargando…" : "Cargar más canciones")</button></div>
+            }
+        }
+    </section>
+
+    <section class="media-workflow" id="clips">
+        <div class="section-heading"><div><p class="eyebrow">TUS RECURSOS VISUALES</p><h2>Crear un videoclip</h2><p class="section-subtitle">Sube un clip MP4 de Google Flow, elige una canción y MelodyFlow los monta con FFmpeg.</p></div><span class="collection-count">@visualAssetCount clips · @renderedVideoCount MP4</span></div>
+        @if (!string.IsNullOrWhiteSpace(mediaError))
+        {
+            <div class="dashboard-alert" role="alert"><span>!</span><div><strong>No se pudo completar la acción visual</strong><p>@mediaError</p></div><button class="quiet-button" @onclick="LoadVisualLibraryAsync">Volver a intentar</button></div>
+        }
+        <div class="media-workflow-grid">
+            <section class="dashboard-panel clip-import-panel">
+                <div class="section-heading compact-heading"><div><p class="eyebrow">IMPORTACIÓN MANUAL</p><h2>1. Sube tu clip</h2></div><span class="heading-orb">◩</span></div>
+                <div class="field-block"><label for="clip-provider">Procedencia</label><InputSelect id="clip-provider" class="studio-input" @bind-Value="providerName" disabled="@uploadingClip"><option value="Google Flow">Google Flow</option><option value="Otro">Otro generador</option><option value="">Sin indicar</option></InputSelect></div>
+                <label class="upload-dropzone" for="clip-file"><span class="upload-symbol">↑</span><strong>@(uploadingClip ? "Subiendo clip…" : "Selecciona un vídeo MP4")</strong><span>Máximo 512 MB · se guarda en MelodyFlow/Media/video-clips</span><InputFile id="clip-file" accept=".mp4,video/mp4" OnChange="ImportClipAsync" disabled="@uploadingClip" /></label>
+                <div class="clip-library-list">
+                    @if (loadingMedia) { <p class="field-hint">Cargando clips…</p> }
+                    else if (visualAssets.Count == 0) { <p class="field-hint">Todavía no has importado clips.</p> }
+                    else { @foreach (var asset in visualAssets.Take(4)) { <div class="clip-library-row"><span>▣</span><div><strong>@asset.FileName</strong><small>@asset.ProviderName · @FormatBytes(asset.FileSizeBytes)</small></div></div> } }
+                </div>
+            </section>
+            <section class="dashboard-panel clip-render-panel">
+                <div class="section-heading compact-heading"><div><p class="eyebrow">MONTAJE LOCAL</p><h2>2. Combina música y vídeo</h2></div><span class="heading-orb">♫</span></div>
+                <div class="field-block"><label for="render-track">Canción</label><InputSelect id="render-track" class="studio-input" @bind-Value="selectedMusicTrackId" disabled="@renderingVideo"><option value="">Elige una canción</option>@foreach (var item in tracks) { <option value="@item.Id">@item.Title · @FormatDuration(item.DurationMs)</option> }</InputSelect></div>
+                <div class="field-block"><label for="render-clip">Clip visual</label><InputSelect id="render-clip" class="studio-input" @bind-Value="selectedVisualAssetId" disabled="@renderingVideo"><option value="">Elige un clip MP4</option>@foreach (var asset in visualAssets) { <option value="@asset.Id">@asset.FileName</option> }</InputSelect></div>
+                <div class="field-block"><label for="render-title">Nombre del videoclip</label><InputText id="render-title" class="studio-input" @bind-Value="videoTitle" placeholder="Opcional: usa el título de la canción" disabled="@renderingVideo" /></div>
+                <button class="generate-button" type="button" @onclick="CreateVideoRenderAsync" disabled="@(renderingVideo || tracks.Count == 0 || visualAssets.Count == 0)">@if (renderingVideo) { <span class="button-spinner"></span><span>Encolando montaje…</span> } else { <span>▣</span><span>Crear videoclip</span><span class="button-arrow">→</span> }</button>
+                <p class="form-footnote">FFmpeg repite el clip si hace falta, lo recorta a la duración de la canción y conserva solo el audio de la pista.</p>
+            </section>
+        </div>
+        <section class="rendered-video-library" id="videos">
+            <div class="section-heading"><div><p class="eyebrow">BIBLIOTECA VISUAL</p><h2>Tus videoclips</h2></div><span class="collection-count">@renderedVideoCount vídeos</span></div>
+            @if (renderedVideos.Count == 0)
+            {
+                <div class="empty-library"><div class="empty-vinyl">▣</div><div><strong>Aún no hay videoclips</strong><p>Cuando termine un montaje, aparecerá aquí para reproducirlo y descargar el MP4.</p></div></div>
+            }
+            else
+            {
+                <div class="rendered-video-grid">@foreach (var item in renderedVideos) { <article class="rendered-video-card"><video controls preload="none" src="@Api.GetVideoUri(item.VideoUrl).ToString()"></video><div><strong>@item.Title</strong><span>@FormatDuration(item.DurationMs) · @item.WidthPx×@item.HeightPx · @FormatBytes(item.FileSizeBytes)</span><a href="@Api.GetVideoUri(item.VideoUrl).ToString()" download>Descargar MP4 ↓</a></div></article> }</div>
+            }
+        </section>
+    </section>
+
+    <footer class="dashboard-footer"><span>MELODYFLOW STUDIO</span><span>Hecho para dar forma a tus ideas, pista a pista.</span></footer>
+</main>

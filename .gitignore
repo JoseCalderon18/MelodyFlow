@@ -24,8 +24,9 @@ appsettings.*.local.json
 # Local binaries and SoundFonts (keep out of Git)
 /local-dependencies/
 
-# Keep internal project README files local; retain the repository-level README.
-**/README*
-!/README*
-!**/AGENTS*
+# Keep internal Markdown documentation local; retain public entry points.
+**/*.md
+!/README.md
+!AGENTS.md
+!**/AGENTS.md
 !**/VVREADME*

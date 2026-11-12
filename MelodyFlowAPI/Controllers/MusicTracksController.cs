@@ -1,6 +1,9 @@
 using MelodyFlow.Application.Music;
+using MelodyFlow.Contracts.V1;
 using MelodyFlow.Contracts.V1.MusicTracks;
+using MelodyFlow.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace MelodyFlowAPI.Controllers;
 
@@ -11,6 +14,20 @@ public sealed class MusicTracksController(
     MusicTrackApplicationService tracks,
     IArtifactStorage artifactStorage) : ControllerBase
 {
+    [HttpGet("music-tracks")]
+    [ProducesResponseType<PagedResponse<MusicTrackResponse>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResponse<MusicTrackResponse>>> GetPage(
+        [FromQuery] MusicTrackPageQuery query,
+        CancellationToken cancellationToken)
+    {
+        var page = await tracks.GetPageAsync(query.Page, query.PageSize, cancellationToken);
+        return Ok(new PagedResponse<MusicTrackResponse>(
+            page.Items.Select(Map).ToArray(),
+            page.Page,
+            page.PageSize,
+            page.TotalCount));
+    }
+
     [HttpGet("generation-jobs/{generationJobId:guid}/track")]
     [ProducesResponseType<MusicTrackResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
@@ -39,17 +56,7 @@ public sealed class MusicTracksController(
             return Problem(statusCode: StatusCodes.Status404NotFound, title: "Generated audio track not found");
         }
 
-        var track = result.Track;
-        return Ok(new MusicTrackResponse(
-            track.Id,
-            track.MusicProjectId,
-            track.GenerationJobId,
-            track.Title,
-            track.DurationMs,
-            track.Format,
-            $"/api/v1/music-tracks/{track.Id:D}/audio",
-            track.CreatedAt,
-            track.UsedAI));
+        return Ok(Map(result.Track));
     }
 
     [HttpGet("music-tracks/{id:guid}/audio", Name = "GetMusicTrackAudio")]
@@ -81,5 +88,34 @@ public sealed class MusicTracksController(
         }
 
         return File(audio, "audio/mpeg", $"melodyflow-{track.Id:N}.mp3", enableRangeProcessing: true);
+    }
+
+    private static MusicTrackResponse Map(MusicTrack track) => new(
+        track.Id,
+        track.MusicProjectId,
+        track.GenerationJobId,
+        track.Title,
+        track.DurationMs,
+        track.Format,
+        $"/api/v1/music-tracks/{track.Id:D}/audio",
+        track.CreatedAt,
+        track.UsedAI);
+}
+
+/// <summary>Parámetros de paginación del catálogo de canciones.</summary>
+public sealed class MusicTrackPageQuery : IValidatableObject
+{
+    [Range(1, int.MaxValue)]
+    public int Page { get; init; } = 1;
+
+    [Range(1, 100)]
+    public int PageSize { get; init; } = 20;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (Page >= 1 && PageSize >= 1 && (long)(Page - 1) * PageSize > int.MaxValue)
+        {
+            yield return new ValidationResult("The requested page is too large.", [nameof(Page)]);
+        }
     }
 }

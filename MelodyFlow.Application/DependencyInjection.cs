@@ -1,6 +1,7 @@
 using MelodyFlow.Application.Projects;
 using MelodyFlow.Application.Jobs;
 using MelodyFlow.Application.Music;
+using MelodyFlow.Application.Visuals;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace MelodyFlow.Application;
@@ -18,6 +19,8 @@ public static class DependencyInjection
         services.AddScoped<MusicProjectApplicationService>();
         services.AddScoped<GenerationJobApplicationService>();
         services.AddScoped<MusicTrackApplicationService>();
+        services.AddScoped<VisualAssetApplicationService>();
+        services.AddScoped<RenderedVideoApplicationService>();
         services.AddSingleton<GenerationJobRetryPolicy>();
         return services;
     }

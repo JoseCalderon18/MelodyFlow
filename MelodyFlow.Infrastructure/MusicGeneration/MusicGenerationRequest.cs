@@ -8,7 +8,8 @@ internal sealed record MusicGenerationRequest(
     bool UseAI,
     int? VariationSeed,
     int? PreferredTempoBpm,
-    string? PreferredKey)
+    string? PreferredKey,
+    string? PreferredScale)
 {
     public static MusicGenerationRequest Parse(string json)
     {
@@ -24,6 +25,7 @@ internal sealed record MusicGenerationRequest(
             int? seed = null;
             int? tempo = null;
             string? key = null;
+            string? scale = null;
             foreach (var property in document.RootElement.EnumerateObject())
             {
                 switch (property.Name)
@@ -38,21 +40,25 @@ internal sealed record MusicGenerationRequest(
                         tempo = parsedTempo;
                         break;
                     case "preferredKey" when property.Value.ValueKind == JsonValueKind.String &&
-                        MusicKey.TryParse(property.Value.GetString(), out _):
+                        (MusicKey.TryParse(property.Value.GetString(), out _) || MusicKey.TryParseRoot(property.Value.GetString()!, out _)):
                         key = property.Value.GetString();
+                        break;
+                    case "preferredScale" when property.Value.ValueKind == JsonValueKind.String &&
+                        MusicalScaleCatalog.TryGet(property.Value.GetString(), out _):
+                        scale = property.Value.GetString();
                         break;
                     default:
                         throw new JsonException("A music parameter was invalid or not recognized.");
                 }
             }
 
-            return new MusicGenerationRequest(useAI, seed, tempo, key);
+            return new MusicGenerationRequest(useAI, seed, tempo, key, scale);
         }
         catch (JsonException exception)
         {
             throw new MusicGenerationException(
                 "unsupported_music_preferences",
-                "Music job parameters may contain useAI (boolean), variationSeed, preferredTempoBpm, and preferredKey.",
+                "Music job parameters may contain useAI, variationSeed, preferredTempoBpm, preferredKey, and preferredScale.",
                 isTransient: false,
                 exception);
         }

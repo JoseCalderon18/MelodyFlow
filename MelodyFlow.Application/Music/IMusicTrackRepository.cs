@@ -11,8 +11,14 @@ public interface IMusicTrackRepository
     /// <summary>Busca la canción producida por un trabajo concreto.</summary>
     Task<MusicTrack?> GetByGenerationJobIdAsync(Guid generationJobId, CancellationToken cancellationToken);
 
+    /// <summary>Devuelve una página de canciones recientes para la biblioteca del usuario.</summary>
+    Task<MusicTrackPage> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken);
+
     /// <summary>
     /// Evita duplicar el resultado si el Worker reintenta después de guardar el archivo.
     /// </summary>
     Task<MusicTrack> AddOrGetByGenerationJobIdAsync(MusicTrack track, CancellationToken cancellationToken);
 }
+
+/// <summary>Una página de canciones junto con los datos necesarios para navegar el listado.</summary>
+public sealed record MusicTrackPage(IReadOnlyList<MusicTrack> Items, int Page, int PageSize, int TotalCount);

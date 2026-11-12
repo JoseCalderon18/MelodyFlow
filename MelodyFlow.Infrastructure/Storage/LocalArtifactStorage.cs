@@ -89,6 +89,18 @@ public sealed class LocalArtifactStorage : IArtifactStorage
         return Task.FromResult(File.Exists(ResolvePath(storageKey)));
     }
 
+    public Task DeleteAsync(string storageKey, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var path = ResolvePath(storageKey);
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
+
+        return Task.CompletedTask;
+    }
+
     private string ResolvePath(string storageKey)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(storageKey);

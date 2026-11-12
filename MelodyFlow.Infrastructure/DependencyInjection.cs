@@ -1,6 +1,7 @@
 using MelodyFlow.Application.Projects;
 using MelodyFlow.Application.Jobs;
 using MelodyFlow.Application.Music;
+using MelodyFlow.Application.Visuals;
 using MelodyFlow.Infrastructure.Persistence;
 using MelodyFlow.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +20,8 @@ public static class DependencyInjection
     public static IServiceCollection AddMelodyFlowInfrastructure(
         this IServiceCollection services,
         string connectionString,
-        string? mediaStorageRoot = null)
+        string? mediaStorageRoot = null,
+        string? mediaTemporaryRoot = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
@@ -28,7 +30,11 @@ public static class DependencyInjection
         services.AddScoped<IMusicProjectRepository, MusicProjectRepository>();
         services.AddScoped<IGenerationJobRepository, GenerationJobRepository>();
         services.AddScoped<IMusicTrackRepository, MusicTrackRepository>();
-        services.AddSingleton<IArtifactStorage>(_ => new LocalArtifactStorage(mediaStorageRoot));
+        services.AddScoped<IVisualAssetRepository, VisualAssetRepository>();
+        services.AddScoped<IRenderedVideoRepository, RenderedVideoRepository>();
+        var mediaPaths = new MediaStoragePaths(mediaStorageRoot, mediaTemporaryRoot);
+        services.AddSingleton(mediaPaths);
+        services.AddSingleton<IArtifactStorage>(_ => new LocalArtifactStorage(mediaPaths.StorageRoot));
         return services;
     }
 }

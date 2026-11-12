@@ -8,15 +8,14 @@ using MelodyFlow.Infrastructure.Persistence;
 var builder = WebApplication.CreateBuilder(args);
 if (builder.Environment.IsDevelopment())
 {
-    // Local overrides are ignored by Git; environment variables and CLI args keep higher precedence.
-    builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+    // Launch-profile environment variables hold machine-local settings; appsettings.Local is not a source.
     builder.Configuration.AddEnvironmentVariables();
     builder.Configuration.AddCommandLine(args);
 }
 // La API es el host público y registra Application e Infrastructure en este mismo proceso.
 var connectionString = builder.Configuration.GetConnectionString("MelodyFlow")
     ?? throw new InvalidOperationException(
-        "Connection string 'MelodyFlow' is missing. Configure it with User Secrets or an environment variable.");
+        "Connection string 'MelodyFlow' is missing. Set it in the local launch profile or process environment.");
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 
 builder.Services.AddControllers().AddJsonOptions(options =>
@@ -26,7 +25,8 @@ builder.Services.AddProblemDetails();
 builder.Services.AddMelodyFlowApplication();
 builder.Services.AddMelodyFlowInfrastructure(
     connectionString,
-    builder.Configuration["Media:StorageRoot"]);
+    builder.Configuration["Media:StorageRoot"],
+    builder.Configuration["Media:TempRoot"]);
 builder.Services.AddCors(options => options.AddPolicy("LocalWebApp", policy =>
     policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 // Esta fase local no usa login; el tráfico se limita por IP y los orígenes de navegador son configurables.

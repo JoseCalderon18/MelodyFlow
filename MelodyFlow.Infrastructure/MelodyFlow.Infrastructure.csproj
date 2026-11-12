@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="MelodyFlow.Tests" />
     <ProjectReference Include="..\MelodyFlow.Application\MelodyFlow.Application.csproj" />
     <ProjectReference Include="..\MelodyFlow.Domain\MelodyFlow.Domain.csproj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />

@@ -19,6 +19,21 @@ public sealed class MusicTrackRepository(MelodyFlowDbContext dbContext) : IMusic
             track => track.GenerationJobId == generationJobId,
             cancellationToken);
 
+    public async Task<MusicTrackPage> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var totalCount = await dbContext.MusicTracks.CountAsync(cancellationToken);
+        var offset = checked((page - 1) * pageSize);
+        var items = await dbContext.MusicTracks
+            .AsNoTracking()
+            .OrderByDescending(track => track.CreatedAt)
+            .ThenBy(track => track.Id)
+            .Skip(offset)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new MusicTrackPage(items, page, pageSize, totalCount);
+    }
+
     public async Task<MusicTrack> AddOrGetByGenerationJobIdAsync(
         MusicTrack track,
         CancellationToken cancellationToken)

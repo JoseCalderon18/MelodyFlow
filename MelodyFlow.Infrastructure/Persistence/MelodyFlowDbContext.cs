@@ -9,6 +9,8 @@ public sealed class MelodyFlowDbContext(DbContextOptions<MelodyFlowDbContext> op
     public DbSet<MusicProject> MusicProjects => Set<MusicProject>();
     public DbSet<GenerationJob> GenerationJobs => Set<GenerationJob>();
     public DbSet<MusicTrack> MusicTracks => Set<MusicTrack>();
+    public DbSet<VisualAsset> VisualAssets => Set<VisualAsset>();
+    public DbSet<RenderedVideo> RenderedVideos => Set<RenderedVideo>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
