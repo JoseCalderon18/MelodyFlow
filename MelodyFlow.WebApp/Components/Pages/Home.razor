@@ -125,7 +125,10 @@
                         <div class="album-cover cover-@CoverVariant(item.Id)"><span>♫</span><i></i><i></i><i></i><i></i><i></i></div>
                         <div class="track-row-info"><strong>@item.Title</strong><span>@ProjectGenre(item.MusicProjectId) · @(item.UsedAI ? "Con propuesta de IA" : "Sin IA") · @FormatDuration(item.DurationMs)</span></div>
                         <audio controls preload="none" src="@Api.GetAudioUri(item.AudioUrl).ToString()" aria-label="Reproducir @item.Title"></audio>
-                        <a class="download-icon" href="@Api.GetAudioUri(item.AudioUrl).ToString()" download aria-label="Descargar @item.Title">↓</a>
+                        <div class="track-actions">
+                            <a class="download-icon" href="@Api.GetAudioUri(item.AudioUrl).ToString()" download aria-label="Descargar @item.Title">↓</a>
+                            <button class="delete-button" type="button" @onclick="() => DeleteTrackAsync(item)" disabled="@(deletingMediaId is not null)" aria-label="Eliminar @item.Title" title="Eliminar canción">×</button>
+                        </div>
                     </article>
                 }
             </div>
@@ -150,7 +153,17 @@
                 <div class="clip-library-list">
                     @if (loadingMedia) { <p class="field-hint">Cargando clips…</p> }
                     else if (visualAssets.Count == 0) { <p class="field-hint">Todavía no has importado clips.</p> }
-                    else { @foreach (var asset in visualAssets.Take(4)) { <div class="clip-library-row"><span>▣</span><div><strong>@asset.FileName</strong><small>@asset.ProviderName · @FormatBytes(asset.FileSizeBytes)</small></div></div> } }
+                    else
+                    {
+                        @foreach (var asset in visualAssets)
+                        {
+                            <div class="clip-library-row">
+                                <span>▣</span>
+                                <div><strong>@asset.FileName</strong><small>@asset.ProviderName · @FormatBytes(asset.FileSizeBytes)</small></div>
+                                <button class="delete-button" type="button" @onclick="() => DeleteVisualAssetAsync(asset)" disabled="@(deletingMediaId is not null)" aria-label="Eliminar clip @asset.FileName" title="Eliminar clip">×</button>
+                            </div>
+                        }
+                    }
                 </div>
             </section>
             <section class="dashboard-panel clip-render-panel">
@@ -170,7 +183,22 @@
             }
             else
             {
-                <div class="rendered-video-grid">@foreach (var item in renderedVideos) { <article class="rendered-video-card"><video controls preload="none" src="@Api.GetVideoUri(item.VideoUrl).ToString()"></video><div><strong>@item.Title</strong><span>@FormatDuration(item.DurationMs) · @item.WidthPx×@item.HeightPx · @FormatBytes(item.FileSizeBytes)</span><a href="@Api.GetVideoUri(item.VideoUrl).ToString()" download>Descargar MP4 ↓</a></div></article> }</div>
+                <div class="rendered-video-grid">
+                    @foreach (var item in renderedVideos)
+                    {
+                        <article class="rendered-video-card">
+                            <video controls preload="none" src="@Api.GetVideoUri(item.VideoUrl).ToString()"></video>
+                            <div>
+                                <strong>@item.Title</strong>
+                                <span>@FormatDuration(item.DurationMs) · @item.WidthPx×@item.HeightPx · @FormatBytes(item.FileSizeBytes)</span>
+                                <div class="rendered-video-actions">
+                                    <a href="@Api.GetVideoUri(item.VideoUrl).ToString()" download>Descargar MP4 ↓</a>
+                                    <button class="delete-button" type="button" @onclick="() => DeleteRenderedVideoAsync(item)" disabled="@(deletingMediaId is not null)" aria-label="Eliminar videoclip @item.Title" title="Eliminar videoclip">Eliminar</button>
+                                </div>
+                            </div>
+                        </article>
+                    }
+                </div>
             }
         </section>
     </section>

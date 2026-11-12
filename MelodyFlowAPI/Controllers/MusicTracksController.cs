@@ -1,5 +1,7 @@
 using MelodyFlow.Application.Music;
+using MelodyFlow.Application.Media;
 using MelodyFlow.Contracts.V1;
+using MelodyFlow.Contracts.V1.Media;
 using MelodyFlow.Contracts.V1.MusicTracks;
 using MelodyFlow.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
@@ -26,6 +28,28 @@ public sealed class MusicTracksController(
             page.Page,
             page.PageSize,
             page.TotalCount));
+    }
+
+    [HttpDelete("music-tracks/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<DeleteResourceResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await tracks.DeleteAsync(id, cancellationToken);
+        return result switch
+        {
+            DeleteResourceOutcome.Deleted => NoContent(),
+            DeleteResourceOutcome.FileCleanupFailed => Ok(new DeleteResourceResponse(
+                true,
+                "La canción se eliminó de la biblioteca, pero no se pudo borrar su archivo local.")),
+            DeleteResourceOutcome.InUse => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "La canción está en uso",
+                detail: "Elimina primero los videoclips que usan esta canción."),
+            _ => Problem(statusCode: StatusCodes.Status404NotFound, title: "Music track not found")
+        };
     }
 
     [HttpGet("generation-jobs/{generationJobId:guid}/track")]

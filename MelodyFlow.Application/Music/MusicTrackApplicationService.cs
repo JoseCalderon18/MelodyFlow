@@ -1,4 +1,5 @@
 using MelodyFlow.Application.Jobs;
+using MelodyFlow.Application.Media;
 using MelodyFlow.Domain.Entities;
 using MelodyFlow.Domain.Enums;
 
@@ -9,8 +10,32 @@ namespace MelodyFlow.Application.Music;
 /// </summary>
 public sealed class MusicTrackApplicationService(
     IMusicTrackRepository tracks,
-    IGenerationJobRepository jobs)
+    IGenerationJobRepository jobs,
+    IArtifactStorage storage)
 {
+    public async Task<DeleteResourceOutcome> DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await tracks.DeleteAsync(id, cancellationToken);
+        if (result.Outcome != DeleteResourceOutcome.Deleted || result.StorageKey is null)
+        {
+            return result.Outcome;
+        }
+
+        try
+        {
+            await storage.DeleteAsync(result.StorageKey, CancellationToken.None);
+            return DeleteResourceOutcome.Deleted;
+        }
+        catch (IOException)
+        {
+            return DeleteResourceOutcome.FileCleanupFailed;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return DeleteResourceOutcome.FileCleanupFailed;
+        }
+    }
+
     /// <summary>Busca una canción por su identificador sin exponer detalles de persistencia.</summary>
     public Task<MusicTrack?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         tracks.GetByIdAsync(id, cancellationToken);

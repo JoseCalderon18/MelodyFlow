@@ -5,6 +5,7 @@ using System.Text.Json;
 using MelodyFlow.Contracts.V1;
 using MelodyFlow.Contracts.V1.GenerationJobs;
 using MelodyFlow.Contracts.V1.MusicTracks;
+using MelodyFlow.Contracts.V1.Media;
 using MelodyFlow.Contracts.V1.Projects;
 using MelodyFlow.Contracts.V1.RenderedVideos;
 using MelodyFlow.Contracts.V1.VisualAssets;
@@ -86,6 +87,9 @@ public sealed class MelodyFlowApiClient(HttpClient httpClient)
             ?? throw new InvalidDataException("La API devolvió una respuesta vacía al listar las canciones.");
     }
 
+    public Task<string?> DeleteMusicTrackAsync(Guid id, CancellationToken cancellationToken) =>
+        DeleteResourceAsync($"api/v1/music-tracks/{id:D}", cancellationToken);
+
     public async Task<PagedResponse<ProjectResponse>> GetProjectsAsync(
         int page,
         int pageSize,
@@ -111,6 +115,9 @@ public sealed class MelodyFlowApiClient(HttpClient httpClient)
             ?? throw new InvalidDataException("La API devolvió una respuesta vacía al listar los clips.");
     }
 
+    public Task<string?> DeleteVisualAssetAsync(Guid id, CancellationToken cancellationToken) =>
+        DeleteResourceAsync($"api/v1/visual-assets/{id:D}", cancellationToken);
+
     public async Task<PagedResponse<RenderedVideoResponse>> GetRenderedVideosAsync(
         int page,
         int pageSize,
@@ -122,6 +129,9 @@ public sealed class MelodyFlowApiClient(HttpClient httpClient)
         return await response.Content.ReadFromJsonAsync<PagedResponse<RenderedVideoResponse>>(cancellationToken)
             ?? throw new InvalidDataException("La API devolvió una respuesta vacía al listar los videoclips.");
     }
+
+    public Task<string?> DeleteRenderedVideoAsync(Guid id, CancellationToken cancellationToken) =>
+        DeleteResourceAsync($"api/v1/rendered-videos/{id:D}", cancellationToken);
 
     public async Task<VisualAssetResponse> ImportVideoAsync(
         IBrowserFile file,
@@ -183,6 +193,19 @@ public sealed class MelodyFlowApiClient(HttpClient httpClient)
 
         var detail = await ReadProblemDetailAsync(response, cancellationToken);
         throw new ApiResponseException(response.StatusCode, detail);
+    }
+
+    private async Task<string?> DeleteResourceAsync(string route, CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.DeleteAsync(route, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NoContent)
+        {
+            return null;
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<DeleteResourceResponse>(cancellationToken);
+        return result?.Warning;
     }
 
     private static async Task<string> ReadProblemDetailAsync(HttpResponseMessage response, CancellationToken cancellationToken)

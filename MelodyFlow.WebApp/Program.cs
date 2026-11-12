@@ -8,9 +8,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-var apiBaseUrl = builder.Configuration["MelodyFlowApi:BaseUrl"] ?? "http://localhost:5032/";
+var apiBaseUrl = builder.Configuration["MelodyFlowApi:BaseUrl"] ?? "https://localhost:7158/";
 builder.Services.AddHttpClient<MelodyFlowApiClient>(client =>
-    client.BaseAddress = new Uri(apiBaseUrl, UriKind.Absolute));
+{
+    client.BaseAddress = new Uri(apiBaseUrl, UriKind.Absolute);
+    // MP4 uploads can be large, especially when the local media disk is slow.
+    client.Timeout = TimeSpan.FromMinutes(30);
+});
 
 var app = builder.Build();
 

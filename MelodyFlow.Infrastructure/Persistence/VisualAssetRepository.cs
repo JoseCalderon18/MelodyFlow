@@ -1,5 +1,8 @@
+using System.Text.Json;
 using MelodyFlow.Application.Visuals;
+using MelodyFlow.Application.Media;
 using MelodyFlow.Domain.Entities;
+using MelodyFlow.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace MelodyFlow.Infrastructure.Persistence;
@@ -27,5 +30,49 @@ public sealed class VisualAssetRepository(MelodyFlowDbContext dbContext) : IVisu
     {
         await dbContext.VisualAssets.AddAsync(asset, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<DeleteResourceResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var asset = await dbContext.VisualAssets.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (asset is null)
+        {
+            return new DeleteResourceResult(DeleteResourceOutcome.NotFound);
+        }
+
+        if (await dbContext.RenderedVideos.AnyAsync(video => video.VisualAssetId == id, cancellationToken) ||
+            await HasActiveRenderReferenceAsync(id, cancellationToken))
+        {
+            return new DeleteResourceResult(DeleteResourceOutcome.InUse);
+        }
+
+        dbContext.VisualAssets.Remove(asset);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new DeleteResourceResult(DeleteResourceOutcome.Deleted, asset.StorageKey);
+    }
+
+    private async Task<bool> HasActiveRenderReferenceAsync(Guid assetId, CancellationToken cancellationToken)
+    {
+        var activeStatuses = new[]
+        {
+            JobStatus.Pending,
+            JobStatus.Queued,
+            JobStatus.Running,
+            JobStatus.Retrying,
+            JobStatus.Cancelling
+        };
+        var parameters = await dbContext.GenerationJobs.AsNoTracking()
+            .Where(job => job.JobType == JobType.Render && activeStatuses.Contains(job.Status))
+            .Select(job => job.RequestedParametersJson)
+            .ToListAsync(cancellationToken);
+
+        return parameters.Any(json =>
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.TryGetProperty("visualAssetId", out var value) &&
+                value.ValueKind == JsonValueKind.String &&
+                Guid.TryParse(value.GetString(), out var referencedId) &&
+                referencedId == assetId;
+        });
     }
 }

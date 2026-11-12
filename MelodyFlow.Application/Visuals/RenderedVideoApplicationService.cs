@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MelodyFlow.Application.Jobs;
+using MelodyFlow.Application.Media;
 using MelodyFlow.Application.Music;
 using MelodyFlow.Domain.Entities;
 using MelodyFlow.Domain.Enums;
@@ -78,6 +79,29 @@ public sealed class RenderedVideoApplicationService(
 
     public Task<Stream?> OpenVideoAsync(RenderedVideo video, CancellationToken cancellationToken) =>
         storage.OpenReadAsync(video.StorageKey, cancellationToken);
+
+    public async Task<DeleteResourceOutcome> DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await videos.DeleteAsync(id, cancellationToken);
+        if (result.Outcome != DeleteResourceOutcome.Deleted || result.StorageKey is null)
+        {
+            return result.Outcome;
+        }
+
+        try
+        {
+            await storage.DeleteAsync(result.StorageKey, CancellationToken.None);
+            return DeleteResourceOutcome.Deleted;
+        }
+        catch (IOException)
+        {
+            return DeleteResourceOutcome.FileCleanupFailed;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return DeleteResourceOutcome.FileCleanupFailed;
+        }
+    }
 }
 
 public enum CreateVideoRenderOutcome

@@ -1,4 +1,5 @@
 using MelodyFlow.Domain.Entities;
+using MelodyFlow.Application.Media;
 
 namespace MelodyFlow.Application.Music;
 
@@ -13,6 +14,9 @@ public interface IMusicTrackRepository
 
     /// <summary>Devuelve una página de canciones recientes para la biblioteca del usuario.</summary>
     Task<MusicTrackPage> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken);
+
+    /// <summary>Deletes a track only when no rendered video references it.</summary>
+    Task<DeleteResourceResult> DeleteAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
     /// Evita duplicar el resultado si el Worker reintenta después de guardar el archivo.

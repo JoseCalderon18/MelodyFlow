@@ -1,5 +1,8 @@
+using System.Text.Json;
 using MelodyFlow.Application.Music;
+using MelodyFlow.Application.Media;
 using MelodyFlow.Domain.Entities;
+using MelodyFlow.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -32,6 +35,53 @@ public sealed class MusicTrackRepository(MelodyFlowDbContext dbContext) : IMusic
             .ToListAsync(cancellationToken);
 
         return new MusicTrackPage(items, page, pageSize, totalCount);
+    }
+
+    public async Task<DeleteResourceResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var track = await dbContext.MusicTracks.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (track is null)
+        {
+            return new DeleteResourceResult(DeleteResourceOutcome.NotFound);
+        }
+
+        if (await dbContext.RenderedVideos.AnyAsync(video => video.MusicTrackId == id, cancellationToken) ||
+            await HasActiveRenderReferenceAsync("musicTrackId", id, cancellationToken))
+        {
+            return new DeleteResourceResult(DeleteResourceOutcome.InUse);
+        }
+
+        dbContext.MusicTracks.Remove(track);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new DeleteResourceResult(DeleteResourceOutcome.Deleted, track.StorageKey);
+    }
+
+    private async Task<bool> HasActiveRenderReferenceAsync(
+        string propertyName,
+        Guid resourceId,
+        CancellationToken cancellationToken)
+    {
+        var activeStatuses = new[]
+        {
+            JobStatus.Pending,
+            JobStatus.Queued,
+            JobStatus.Running,
+            JobStatus.Retrying,
+            JobStatus.Cancelling
+        };
+        var parameters = await dbContext.GenerationJobs.AsNoTracking()
+            .Where(job => job.JobType == JobType.Render && activeStatuses.Contains(job.Status))
+            .Select(job => job.RequestedParametersJson)
+            .ToListAsync(cancellationToken);
+
+        return parameters.Any(json =>
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.TryGetProperty(propertyName, out var value) &&
+                value.ValueKind == JsonValueKind.String &&
+                Guid.TryParse(value.GetString(), out var referencedId) &&
+                referencedId == resourceId;
+        });
     }
 
     public async Task<MusicTrack> AddOrGetByGenerationJobIdAsync(

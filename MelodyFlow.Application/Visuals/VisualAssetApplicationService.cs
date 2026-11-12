@@ -1,4 +1,5 @@
 using MelodyFlow.Application.Music;
+using MelodyFlow.Application.Media;
 using MelodyFlow.Application.Projects;
 using MelodyFlow.Domain.Entities;
 using MelodyFlow.Domain.Enums;
@@ -92,6 +93,29 @@ public sealed class VisualAssetApplicationService(
 
     public Task<Stream?> OpenVideoAsync(VisualAsset asset, CancellationToken cancellationToken) =>
         storage.OpenReadAsync(asset.StorageKey, cancellationToken);
+
+    public async Task<DeleteResourceOutcome> DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await assets.DeleteAsync(id, cancellationToken);
+        if (result.Outcome != DeleteResourceOutcome.Deleted || result.StorageKey is null)
+        {
+            return result.Outcome;
+        }
+
+        try
+        {
+            await storage.DeleteAsync(result.StorageKey, CancellationToken.None);
+            return DeleteResourceOutcome.Deleted;
+        }
+        catch (IOException)
+        {
+            return DeleteResourceOutcome.FileCleanupFailed;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return DeleteResourceOutcome.FileCleanupFailed;
+        }
+    }
 
     private static void ValidatePage(int page, int pageSize)
     {

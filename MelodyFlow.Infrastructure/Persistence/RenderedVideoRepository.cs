@@ -1,4 +1,5 @@
 using MelodyFlow.Application.Visuals;
+using MelodyFlow.Application.Media;
 using MelodyFlow.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -27,6 +28,19 @@ public sealed class RenderedVideoRepository(MelodyFlowDbContext dbContext) : IRe
             .Take(pageSize)
             .ToListAsync(cancellationToken);
         return new RenderedVideoPage(items, page, pageSize, totalCount);
+    }
+
+    public async Task<DeleteResourceResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var video = await dbContext.RenderedVideos.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (video is null)
+        {
+            return new DeleteResourceResult(DeleteResourceOutcome.NotFound);
+        }
+
+        dbContext.RenderedVideos.Remove(video);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new DeleteResourceResult(DeleteResourceOutcome.Deleted, video.StorageKey);
     }
 
     public async Task<RenderedVideo> AddOrGetByRenderJobIdAsync(RenderedVideo video, CancellationToken cancellationToken)

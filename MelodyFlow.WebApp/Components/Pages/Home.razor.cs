@@ -7,6 +7,7 @@ using MelodyFlow.Contracts.V1.VisualAssets;
 using Microsoft.AspNetCore.Components.Forms;
 using MelodyFlow.WebApp.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 
 namespace MelodyFlow.WebApp.Components.Pages;
 
@@ -18,6 +19,12 @@ public partial class Home : IAsyncDisposable
 
     [Inject]
     private MelodyFlowApiClient Api { get; set; } = default!;
+
+    [Inject]
+    private IJSRuntime JavaScript { get; set; } = default!;
+
+    [Inject]
+    private ILogger<Home> Logger { get; set; } = default!;
 
     private readonly MusicProjectForm form = new();
     private readonly List<MusicTrackResponse> tracks = [];
@@ -47,6 +54,7 @@ public partial class Home : IAsyncDisposable
     private bool renderingVideo;
     private bool submitting;
     private bool refreshing;
+    private Guid? deletingMediaId;
     private string? loadError;
     private string? errorMessage;
     private string? mediaError;
@@ -337,7 +345,7 @@ public partial class Home : IAsyncDisposable
         mediaError = null;
         try
         {
-            var asset = await Api.ImportVideoAsync(file, providerName, CancellationToken.None);
+            var asset = await Api.ImportVideoAsync(file, providerName, componentLifetime.Token);
             visualAssets.Insert(0, asset);
             visualAssetCount++;
             selectedVisualAssetId = asset.Id;
@@ -346,17 +354,138 @@ public partial class Home : IAsyncDisposable
         {
             mediaError = $"La API respondió con HTTP {(int)exception.StatusCode}: {exception.Message}";
         }
-        catch (HttpRequestException)
+        catch (TaskCanceledException exception)
         {
-            mediaError = "No se pudo subir el clip a la API.";
+            Logger.LogWarning("MP4 upload timed out or was cancelled ({ExceptionType}); file size {FileSizeBytes} bytes.", exception.GetType().Name, file.Size);
+            mediaError = "La subida tardó demasiado o se canceló. Prueba de nuevo; el límite está en 512 MB.";
         }
         catch (InvalidDataException exception)
         {
             mediaError = exception.Message;
         }
+        catch (HttpRequestException exception)
+        {
+            Logger.LogWarning("MP4 upload could not reach the API ({ExceptionType}); file size {FileSizeBytes} bytes.", exception.GetType().Name, file.Size);
+            mediaError = $"No se pudo completar la subida a la API. Comprueba que la API esté iniciada con su perfil HTTPS. Detalle: {exception.Message}";
+        }
+        catch (IOException exception)
+        {
+            Logger.LogWarning("MP4 upload failed while reading or sending the file ({ExceptionType}); file size {FileSizeBytes} bytes.", exception.GetType().Name, file.Size);
+            mediaError = $"No se pudo leer o enviar el archivo local. Detalle: {exception.Message}";
+        }
         finally
         {
             uploadingClip = false;
+        }
+    }
+
+    private async Task DeleteTrackAsync(MusicTrackResponse item)
+    {
+        if (!await JavaScript.InvokeAsync<bool>("confirm", $"¿Eliminar «{item.Title}»? Se borrará también el MP3 del almacenamiento local."))
+        {
+            return;
+        }
+
+        deletingMediaId = item.Id;
+        mediaError = null;
+        try
+        {
+            var warning = await Api.DeleteMusicTrackAsync(item.Id, CancellationToken.None);
+            tracks.Remove(item);
+            trackCount = Math.Max(0, trackCount - 1);
+            if (selectedMusicTrackId == item.Id)
+            {
+                selectedMusicTrackId = null;
+            }
+
+            if (track?.Id == item.Id)
+            {
+                track = null;
+            }
+
+            mediaError = warning;
+        }
+        catch (ApiResponseException exception)
+        {
+            mediaError = $"No se pudo eliminar la canción (HTTP {(int)exception.StatusCode}): {exception.Message}";
+        }
+        catch (HttpRequestException)
+        {
+            mediaError = "No se pudo contactar con la API para eliminar la canción.";
+        }
+        finally
+        {
+            deletingMediaId = null;
+        }
+    }
+
+    private async Task DeleteVisualAssetAsync(VisualAssetResponse item)
+    {
+        if (!await JavaScript.InvokeAsync<bool>("confirm", $"¿Eliminar el clip «{item.FileName}»? Se borrará también el archivo MP4 local."))
+        {
+            return;
+        }
+
+        deletingMediaId = item.Id;
+        mediaError = null;
+        try
+        {
+            var warning = await Api.DeleteVisualAssetAsync(item.Id, CancellationToken.None);
+            visualAssets.Remove(item);
+            visualAssetCount = Math.Max(0, visualAssetCount - 1);
+            if (selectedVisualAssetId == item.Id)
+            {
+                selectedVisualAssetId = visualAssets.FirstOrDefault()?.Id;
+            }
+
+            mediaError = warning;
+        }
+        catch (ApiResponseException exception)
+        {
+            mediaError = $"No se pudo eliminar el clip (HTTP {(int)exception.StatusCode}): {exception.Message}";
+        }
+        catch (HttpRequestException)
+        {
+            mediaError = "No se pudo contactar con la API para eliminar el clip.";
+        }
+        finally
+        {
+            deletingMediaId = null;
+        }
+    }
+
+    private async Task DeleteRenderedVideoAsync(RenderedVideoResponse item)
+    {
+        if (!await JavaScript.InvokeAsync<bool>("confirm", $"¿Eliminar el videoclip «{item.Title}»? Se borrará también el MP4 local."))
+        {
+            return;
+        }
+
+        deletingMediaId = item.Id;
+        mediaError = null;
+        try
+        {
+            var warning = await Api.DeleteRenderedVideoAsync(item.Id, CancellationToken.None);
+            renderedVideos.Remove(item);
+            renderedVideoCount = Math.Max(0, renderedVideoCount - 1);
+            if (renderedVideo?.Id == item.Id)
+            {
+                renderedVideo = null;
+            }
+
+            mediaError = warning;
+        }
+        catch (ApiResponseException exception)
+        {
+            mediaError = $"No se pudo eliminar el videoclip (HTTP {(int)exception.StatusCode}): {exception.Message}";
+        }
+        catch (HttpRequestException)
+        {
+            mediaError = "No se pudo contactar con la API para eliminar el videoclip.";
+        }
+        finally
+        {
+            deletingMediaId = null;
         }
     }
 

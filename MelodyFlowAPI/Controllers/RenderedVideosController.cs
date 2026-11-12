@@ -1,7 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 using MelodyFlow.Application.Visuals;
+using MelodyFlow.Application.Media;
 using MelodyFlow.Contracts.V1;
 using MelodyFlow.Contracts.V1.GenerationJobs;
+using MelodyFlow.Contracts.V1.Media;
 using MelodyFlow.Contracts.V1.RenderedVideos;
 using MelodyFlow.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
@@ -112,6 +114,23 @@ public sealed class RenderedVideosController(RenderedVideoApplicationService vid
         return content is null
             ? Problem(statusCode: StatusCodes.Status404NotFound, title: "Rendered MP4 file not found")
             : File(content, "video/mp4", $"{video.Title}.mp4", enableRangeProcessing: true);
+    }
+
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<DeleteResourceResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await videos.DeleteAsync(id, cancellationToken);
+        return result switch
+        {
+            DeleteResourceOutcome.Deleted => NoContent(),
+            DeleteResourceOutcome.FileCleanupFailed => Ok(new DeleteResourceResponse(
+                true,
+                "El videoclip se eliminó de la biblioteca, pero no se pudo borrar su archivo local.")),
+            _ => Problem(statusCode: StatusCodes.Status404NotFound, title: "Rendered video not found")
+        };
     }
 
     private static RenderedVideoResponse Map(RenderedVideo video) => new(

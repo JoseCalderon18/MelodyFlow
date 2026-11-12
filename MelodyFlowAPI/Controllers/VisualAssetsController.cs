@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using MelodyFlow.Application.Visuals;
+using MelodyFlow.Application.Media;
 using MelodyFlow.Contracts.V1;
+using MelodyFlow.Contracts.V1.Media;
 using MelodyFlow.Contracts.V1.VisualAssets;
 using MelodyFlow.Domain.Entities;
 using MelodyFlow.Domain.Enums;
@@ -104,6 +106,28 @@ public sealed class VisualAssetsController(VisualAssetApplicationService assets)
         return content is null
             ? Problem(statusCode: StatusCodes.Status404NotFound, title: "Video file not found")
             : File(content, "video/mp4", asset.FileName, enableRangeProcessing: true);
+    }
+
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<DeleteResourceResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await assets.DeleteAsync(id, cancellationToken);
+        return result switch
+        {
+            DeleteResourceOutcome.Deleted => NoContent(),
+            DeleteResourceOutcome.FileCleanupFailed => Ok(new DeleteResourceResponse(
+                true,
+                "El clip se eliminó de la biblioteca, pero no se pudo borrar su archivo local.")),
+            DeleteResourceOutcome.InUse => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "El clip está en uso",
+                detail: "Elimina primero los videoclips que usan este clip."),
+            _ => Problem(statusCode: StatusCodes.Status404NotFound, title: "Visual asset not found")
+        };
     }
 
     private static VisualAssetResponse Map(VisualAsset asset) => new(
