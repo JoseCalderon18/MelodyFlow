@@ -13,7 +13,8 @@ internal sealed record MusicGenerationRequest(
     string? PreferredGroove = null,
     string? PreferredForm = null,
     string? TextureDensity = null,
-    string? MixProfile = null)
+    string? MixProfile = null,
+    StemMixSettings? Mixer = null)
 {
     public static MusicGenerationRequest Parse(string json)
     {
@@ -34,6 +35,7 @@ internal sealed record MusicGenerationRequest(
             string? form = null;
             string? density = null;
             string? mixProfile = null;
+            StemMixSettings? mixer = null;
             foreach (var property in document.RootElement.EnumerateObject())
             {
                 switch (property.Name)
@@ -71,20 +73,57 @@ internal sealed record MusicGenerationRequest(
                         ArrangementStyleCatalog.IsSupportedMixProfile(property.Value.GetString()!):
                         mixProfile = property.Value.GetString();
                         break;
+                    case "mixer" when property.Value.ValueKind == JsonValueKind.Object:
+                        mixer = ParseMixer(property.Value);
+                        break;
                     default:
                         throw new JsonException("A music parameter was invalid or not recognized.");
                 }
             }
 
-            return new MusicGenerationRequest(useAI, seed, tempo, key, scale, groove, form, density, mixProfile);
+            return new MusicGenerationRequest(useAI, seed, tempo, key, scale, groove, form, density, mixProfile, mixer);
         }
         catch (JsonException exception)
         {
             throw new MusicGenerationException(
                 "unsupported_music_preferences",
-                "Music job parameters contain an invalid value. Supported options include AI, tempo, key, scale, groove, form, density, and mix profile.",
+                "Music job parameters contain an invalid value. Supported options include AI, tempo, key, scale, groove, form, density, mix profile, and per-part mixer controls.",
                 isTransient: false,
                 exception);
+        }
+    }
+
+    private static StemMixSettings ParseMixer(JsonElement value)
+    {
+        var mixer = new StemMixSettings();
+        foreach (var property in value.EnumerateObject())
+        {
+            if (property.Value.ValueKind != JsonValueKind.Number || !property.Value.TryGetDouble(out var number))
+            {
+                throw new JsonException("Mixer controls must be finite numbers.");
+            }
+
+            mixer = property.Name switch
+            {
+                "chordsGainDb" => mixer with { ChordsGainDb = number },
+                "bassGainDb" => mixer with { BassGainDb = number },
+                "leadGainDb" => mixer with { LeadGainDb = number },
+                "drumsGainDb" => mixer with { DrumsGainDb = number },
+                "chordsPan" => mixer with { ChordsPan = number },
+                "bassPan" => mixer with { BassPan = number },
+                "leadPan" => mixer with { LeadPan = number },
+                "drumsPan" => mixer with { DrumsPan = number },
+                _ => throw new JsonException("A mixer control was not recognized.")
+            };
+        }
+
+        try
+        {
+            return mixer.Validate();
+        }
+        catch (InvalidDataException exception)
+        {
+            throw new JsonException("A mixer control was outside its supported range.", exception);
         }
     }
 

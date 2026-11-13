@@ -10,7 +10,8 @@ internal static class ArrangementStyleCatalog
     private static readonly string[] Grooves =
     [
         "ambient", "lofi", "backbeat", "four-on-floor", "cinematic",
-        "pulse", "arpeggiated", "shuffle", "swing", "broken-beat", "clave"
+        "pulse", "arpeggiated", "shuffle", "swing", "broken-beat", "clave",
+        "dembow", "bossa", "trap", "disco"
     ];
     private static readonly string[] InstrumentSets = ["ambient", "lofi", "pop", "electronic", "cinematic", "rock", "acoustic"];
     private static readonly string[] Forms = ["evolving-arc", "aaba", "build-break-return", "cinematic-arc", "steady-groove"];
@@ -29,9 +30,25 @@ internal static class ArrangementStyleCatalog
         {
             style = new ArrangementStyle("lofi", "lofi", "aaba", "balanced", "warm");
         }
-        else if (ContainsAny(genre, "latin", "salsa", "reggaeton"))
+        else if (ContainsAny(genre, "reggaeton", "dembow", "latin trap"))
+        {
+            style = new ArrangementStyle("dembow", "electronic", "build-break-return", "layered", "balanced");
+        }
+        else if (ContainsAny(genre, "bossa", "samba"))
+        {
+            style = new ArrangementStyle("bossa", "acoustic", "aaba", "balanced", "warm");
+        }
+        else if (ContainsAny(genre, "latin", "salsa"))
         {
             style = new ArrangementStyle("clave", "pop", "build-break-return", "balanced", "balanced");
+        }
+        else if (ContainsAny(genre, "trap", "drill"))
+        {
+            style = new ArrangementStyle("trap", "electronic", "build-break-return", "layered", "spacious");
+        }
+        else if (ContainsAny(genre, "disco", "funk"))
+        {
+            style = new ArrangementStyle("disco", "pop", "build-break-return", "layered", "balanced");
         }
         else if (ContainsAny(genre, "jazz", "swing", "bossa"))
         {
@@ -70,6 +87,10 @@ internal static class ArrangementStyleCatalog
             "cinematic" => new[] { "cinematic", "pulse", "arpeggiated" },
             "swing" => new[] { "swing", "shuffle", "backbeat" },
             "clave" => new[] { "clave", "backbeat", "broken-beat" },
+            "dembow" => new[] { "dembow", "clave", "broken-beat" },
+            "bossa" => new[] { "bossa", "swing", "clave" },
+            "trap" => new[] { "trap", "broken-beat", "four-on-floor" },
+            "disco" => new[] { "disco", "four-on-floor", "backbeat" },
             _ => new[] { style.Groove }
         };
         var alternateForms = style.Form switch

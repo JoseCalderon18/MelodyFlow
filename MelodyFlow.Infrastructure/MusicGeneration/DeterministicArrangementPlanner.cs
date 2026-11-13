@@ -73,7 +73,8 @@ internal static class DeterministicArrangementPlanner
             Form = style.Form,
             TextureDensity = style.TextureDensity,
             MixProfile = style.MixProfile,
-            PaletteVariant = (int)((positiveSeed >> 8) % 3)
+            PaletteVariant = (int)((positiveSeed >> 8) % 8),
+            Mixer = request.Mixer ?? new StemMixSettings()
         };
     }
 

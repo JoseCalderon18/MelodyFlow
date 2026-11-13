@@ -12,55 +12,91 @@ internal sealed class LocalAudioRenderer(IOptions<MusicGenerationOptions> option
 {
     /// <summary>Renderiza MIDI a WAV, convierte a MP3 y devuelve la duración medida del archivo final.</summary>
     public async Task<long> RenderMp3Async(
-        string midiPath,
-        string wavPath,
+        IReadOnlyList<MidiStemSource> stems,
+        string workingDirectory,
         string mp3Path,
         int targetDurationSeconds,
         ArrangementPlan plan,
+        Func<int, CancellationToken, Task> reportProgressAsync,
         CancellationToken cancellationToken)
     {
+        if (stems.Count != 4 || stems.Select(stem => stem.Role).Distinct(StringComparer.Ordinal).Count() != 4)
+        {
+            throw new MusicGenerationException(
+                "audio_stems_invalid",
+                "The arrangement did not produce the four required audio parts.",
+                isTransient: false);
+        }
+
         var settings = options.Value;
         var (roomSize, reverbLevel, reverbDamp, reverbWidth, chorusActive, chorusLevel, chorusDepth) =
             EffectsFor(plan.MixProfile);
-        var fluidsynthArguments = new List<string>
+        var wavPaths = new List<string>(stems.Count);
+        for (var index = 0; index < stems.Count; index++)
         {
-            "-n", "-i", "-q", "-T", "wav", "-F", wavPath, "-r", "44100",
-            "-o", "synth.gain=0.18",
-            "-o", "synth.reverb.active=1",
-            "-o", $"synth.reverb.room-size={FormatFluidValue(roomSize)}",
-            "-o", $"synth.reverb.level={FormatFluidValue(reverbLevel)}",
-            "-o", $"synth.reverb.damp={FormatFluidValue(reverbDamp)}",
-            "-o", $"synth.reverb.width={FormatFluidValue(reverbWidth)}",
-            "-o", $"synth.chorus.active={(chorusActive ? 1 : 0)}",
-            "-o", $"synth.chorus.level={FormatFluidValue(chorusLevel)}",
-            "-o", "synth.chorus.nr=3",
-            "-o", "synth.chorus.speed=0.25",
-            "-o", $"synth.chorus.depth={FormatFluidValue(chorusDepth)}",
-            settings.SoundFontPath,
-            midiPath
-        };
-        // Indicamos WAV de forma explícita: sin esta opción FluidSynth genera muestras sin cabecera.
-        await RunToolAsync(
-            settings.FluidSynthPath,
-            fluidsynthArguments,
-            cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            var stem = stems[index];
+            var wavPath = Path.Combine(workingDirectory, $"stem-{stem.Role}.wav");
+            var fluidsynthArguments = new List<string>
+            {
+                "-n", "-i", "-q", "-T", "wav", "-F", wavPath, "-r", "44100",
+                "-o", "synth.gain=0.18",
+                "-o", "synth.reverb.active=1",
+                "-o", $"synth.reverb.room-size={FormatFluidValue(roomSize)}",
+                "-o", $"synth.reverb.level={FormatFluidValue(reverbLevel)}",
+                "-o", $"synth.reverb.damp={FormatFluidValue(reverbDamp)}",
+                "-o", $"synth.reverb.width={FormatFluidValue(reverbWidth)}",
+                "-o", $"synth.chorus.active={(chorusActive ? 1 : 0)}",
+                "-o", $"synth.chorus.level={FormatFluidValue(chorusLevel)}",
+                "-o", "synth.chorus.nr=3",
+                "-o", "synth.chorus.speed=0.25",
+                "-o", $"synth.chorus.depth={FormatFluidValue(chorusDepth)}",
+                settings.SoundFontPath,
+                stem.MidiPath
+            };
+            // Cada parte se renderiza sola para que los faders y el paneo actúen sobre audio independiente.
+            await RunToolAsync(settings.FluidSynthPath, fluidsynthArguments, cancellationToken);
+            wavPaths.Add(wavPath);
+            await reportProgressAsync(45 + ((index + 1) * 9), cancellationToken);
+        }
 
         var fadeSeconds = Math.Min(1.8, targetDurationSeconds * 0.18);
         var fadeOutStart = Math.Max(0, targetDurationSeconds - fadeSeconds);
-        var fadeFilter = string.Join(",",
-            $"afade=t=in:st=0:d={FormatFluidValue(fadeSeconds)}:curve=hsin",
-            $"afade=t=out:st={FormatFluidValue(fadeOutStart)}:d={FormatFluidValue(fadeSeconds)}:curve=hsin");
+        var filterParts = new List<string>();
+        for (var index = 0; index < stems.Count; index++)
+        {
+            var stem = stems[index];
+            filterParts.Add(
+                $"[{index}:a]volume={FormatFluidValue(plan.Mixer.GainFor(stem.Role))}dB," +
+                $"stereotools=balance_out={FormatFluidValue(plan.Mixer.PanFor(stem.Role))}:bmode_out=power[a{index}]");
+        }
 
-        // Conserva el rango dinámico y añade fades cortos para evitar cortes secos en los extremos.
-        await RunToolAsync(
-            settings.FfmpegPath,
-            [
-                "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", wavPath,
-                "-t", targetDurationSeconds.ToString(CultureInfo.InvariantCulture),
-                "-af", fadeFilter,
-                "-codec:a", "libmp3lame", "-q:a", "2", "-ar", "44100", "-map_metadata", "-1", mp3Path
-            ],
-            cancellationToken);
+        var inputs = string.Concat(Enumerable.Range(0, stems.Count).Select(index => $"[a{index}]"));
+        var mixGraph = string.Join(";", filterParts) + ";" +
+            $"{inputs}amix=inputs={stems.Count}:duration=longest:dropout_transition=0:normalize=0," +
+            "alimiter=limit=0.89:attack=5:release=80:level=0," +
+            $"afade=t=in:st=0:d={FormatFluidValue(fadeSeconds)}:curve=hsin," +
+            $"afade=t=out:st={FormatFluidValue(fadeOutStart)}:d={FormatFluidValue(fadeSeconds)}:curve=hsin[mix]";
+        var ffmpegArguments = new List<string>
+        {
+            "-hide_banner", "-loglevel", "error", "-nostdin", "-y"
+        };
+        foreach (var wavPath in wavPaths)
+        {
+            ffmpegArguments.Add("-i");
+            ffmpegArguments.Add(wavPath);
+        }
+
+        ffmpegArguments.AddRange(
+        [
+            "-filter_complex", mixGraph, "-map", "[mix]",
+            "-t", targetDurationSeconds.ToString(CultureInfo.InvariantCulture),
+            "-codec:a", "libmp3lame", "-q:a", "2", "-ar", "44100", "-map_metadata", "-1", mp3Path
+        ]);
+
+        // Suma las partes con controles independientes y limita solo los picos antes del MP3.
+        await RunToolAsync(settings.FfmpegPath, ffmpegArguments, cancellationToken);
+        await reportProgressAsync(88, cancellationToken);
 
         // La duración se mide sobre el MP3 final y no se deduce solo de la duración solicitada.
         var durationOutput = await RunToolAsync(

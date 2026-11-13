@@ -10,7 +10,15 @@ internal interface IMidiComposer
         int targetDurationSeconds,
         string destinationPath,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<MidiStemSource>> ComposeStemsAsync(
+        ArrangementPlan plan,
+        int targetDurationSeconds,
+        string destinationPath,
+        CancellationToken cancellationToken);
 }
+
+internal sealed record MidiStemSource(string Role, string MidiPath);
 
 /// <summary>Writes a deterministic, style-aware multi-track MIDI arrangement.</summary>
 internal sealed class MidiComposer : IMidiComposer
@@ -18,6 +26,16 @@ internal sealed class MidiComposer : IMidiComposer
     private const int TicksPerQuarterNote = 480;
     private const int BeatsPerBar = 4;
     private const int EighthNoteTicks = TicksPerQuarterNote / 2;
+
+    public async Task<IReadOnlyList<MidiStemSource>> ComposeStemsAsync(
+        ArrangementPlan plan,
+        int targetDurationSeconds,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        await ComposeAsync(plan, targetDurationSeconds, destinationPath, cancellationToken);
+        return await MidiStemExporter.ExportAsync(destinationPath, cancellationToken);
+    }
 
     public async Task ComposeAsync(
         ArrangementPlan plan,
@@ -65,8 +83,8 @@ internal sealed class MidiComposer : IMidiComposer
             WriteUInt16BigEndian(writer, TicksPerQuarterNote);
 
             WriteTrack(writer, track => WriteConductorTrack(track, plan, sections, microsecondsPerQuarter, ticksPerBar), targetTicks);
-            WriteTrack(writer, track => WriteChordTrack(track, plan, sections, programs.Chords, barCount, ticksPerBar, targetTicks), targetTicks);
-            WriteTrack(writer, track => WriteBassTrack(track, plan, sections, programs.Bass, barCount, ticksPerBar, targetTicks), targetTicks);
+            WriteTrack(writer, track => WriteChordTrack(track, plan, key, scale, sections, programs.Chords, barCount, ticksPerBar, targetTicks), targetTicks);
+            WriteTrack(writer, track => WriteBassTrack(track, plan, key, scale, sections, programs.Bass, barCount, ticksPerBar, targetTicks), targetTicks);
             WriteTrack(writer, track => WriteMelodyTrack(track, plan, key, scale, sections, programs.Lead, barCount, ticksPerBar, targetTicks), targetTicks);
             WriteTrack(writer, track => WriteDrumTrack(track, plan, sections, barCount, ticksPerBar, targetTicks), targetTicks);
         }
@@ -96,6 +114,8 @@ internal sealed class MidiComposer : IMidiComposer
     private static void WriteChordTrack(
         MidiTrackWriter track,
         ArrangementPlan plan,
+        MusicKey key,
+        MusicalScaleDefinition scale,
         IReadOnlyList<ArrangementSection> sections,
         int program,
         long barCount,
@@ -118,11 +138,7 @@ internal sealed class MidiComposer : IMidiComposer
             }
 
             var section = ArrangementStructure.At(sections, bar);
-            var chordIndex = (ArrangementStructure.ChordOffset(section) + (int)(bar % 4)) % plan.Chords.Count;
-            if (!Chord.TryParse(plan.Chords[chordIndex], out var chord))
-            {
-                throw new InvalidDataException("The arrangement contains an unsupported chord.");
-            }
+            var chord = ChordForBar(plan, key, scale, section, bar, barCount);
 
             var voicing = BuildVoicing(chord, previousVoicing, bar, plan.VariationSeed);
             previousVoicing = voicing;
@@ -143,9 +159,12 @@ internal sealed class MidiComposer : IMidiComposer
                 foreach (var (offset, duration, velocityScale) in ChordRhythm(plan.Groove, bar, plan.VariationSeed, section))
                 {
                     var velocity = ScaleVelocity(72, intensity * velocityScale);
+                    var pocket = offset % TicksPerQuarterNote == 0
+                        ? 0
+                        : GroovePocketOffset(plan.Groove, plan.VariationSeed, bar, (int)(offset / EighthNoteTicks), role: 1);
                     foreach (var note in voicing)
                     {
-                        AddNote(events, note, barStart + offset, duration, targetTicks, velocity);
+                        AddNote(events, note, Math.Max(0, barStart + offset + pocket), duration, targetTicks, velocity);
                     }
                 }
             }
@@ -157,6 +176,8 @@ internal sealed class MidiComposer : IMidiComposer
     private static void WriteBassTrack(
         MidiTrackWriter track,
         ArrangementPlan plan,
+        MusicKey key,
+        MusicalScaleDefinition scale,
         IReadOnlyList<ArrangementSection> sections,
         int program,
         long barCount,
@@ -178,11 +199,7 @@ internal sealed class MidiComposer : IMidiComposer
             }
 
             var section = ArrangementStructure.At(sections, bar);
-            var chordIndex = (ArrangementStructure.ChordOffset(section) + (int)(bar % 4)) % plan.Chords.Count;
-            if (!Chord.TryParse(plan.Chords[chordIndex], out var chord))
-            {
-                throw new InvalidDataException("The arrangement contains an unsupported chord.");
-            }
+            var chord = ChordForBar(plan, key, scale, section, bar, barCount);
 
             var intensity = SectionIntensity(section, bar, barCount, plan.TextureDensity);
             if (section.Type == ArrangementSectionType.Break ||
@@ -196,7 +213,8 @@ internal sealed class MidiComposer : IMidiComposer
             {
                 var note = 36 + chord.RootPitchClass + degree;
                 var velocity = ScaleVelocity(78, intensity * velocityScale);
-                AddNote(events, note, barStart + (beat * TicksPerQuarterNote), durationBeats * TicksPerQuarterNote,
+                var pocket = beat is 0 or 2 ? 0 : GroovePocketOffset(plan.Groove, plan.VariationSeed, bar, beat * 2, role: 2);
+                AddNote(events, note, Math.Max(0, barStart + (beat * TicksPerQuarterNote) + pocket), durationBeats * TicksPerQuarterNote,
                     targetTicks, velocity);
             }
         }
@@ -235,11 +253,7 @@ internal sealed class MidiComposer : IMidiComposer
             var motifOffset = (int)((unchecked((uint)plan.VariationSeed) % 7 +
                 (section.Type == ArrangementSectionType.Variation ? 2u : 0u)) % 7);
             var intensity = SectionIntensity(section, bar, barCount, plan.TextureDensity);
-            var chordIndex = (ArrangementStructure.ChordOffset(section) + (int)(bar % 4)) % plan.Chords.Count;
-            if (!Chord.TryParse(plan.Chords[chordIndex], out var barChord))
-            {
-                throw new InvalidDataException("The arrangement contains an unsupported chord.");
-            }
+            var barChord = ChordForBar(plan, key, scale, section, bar, barCount);
 
             foreach (var step in rhythm)
             {
@@ -261,7 +275,8 @@ internal sealed class MidiComposer : IMidiComposer
                 var octave = plan.InstrumentSet is "cinematic" or "ambient" ? 1 : 0;
                 var note = scale.GetMidiNote(key.RootPitchClass, degree, octaveOffset: octave);
                 var velocity = ScaleVelocity(68 + random.Next(0, 18), intensity);
-                var start = barStart + (step * EighthNoteTicks);
+                var start = Math.Max(0, barStart + (step * EighthNoteTicks) +
+                    GroovePocketOffset(plan.Groove, plan.VariationSeed, bar, step, role: 3));
                 var noteLength = plan.Groove is ("ambient" or "pulse") ||
                     section.Type is (ArrangementSectionType.Break or ArrangementSectionType.Outro)
                     ? EighthNoteTicks * 3L
@@ -310,13 +325,35 @@ internal sealed class MidiComposer : IMidiComposer
 
             foreach (var (step, note, velocity) in hits)
             {
-                var offset = step * EighthNoteTicks + SwingOffset(plan.Groove, step);
+                var offset = (long)step * EighthNoteTicks + SwingOffset(plan.Groove, step);
+                if (note is 42 or 44 or 46)
+                {
+                    offset += GroovePocketOffset(plan.Groove, plan.VariationSeed, bar, step, role: 4);
+                }
+
+                var accentedVelocity = VaryDrumVelocity(note, velocity, step, bar, plan.VariationSeed);
                 AddNote(events, note, barStart + offset, durationTicks: 60,
-                    targetTicks, ScaleVelocity(velocity, intensity));
+                    targetTicks, ScaleVelocity(accentedVelocity, intensity));
             }
         }
 
         WriteNotes(track, channel, events, controls);
+    }
+
+    private static Chord ChordForBar(
+        ArrangementPlan plan,
+        MusicKey key,
+        MusicalScaleDefinition scale,
+        ArrangementSection section,
+        long bar,
+        long barCount)
+    {
+        var symbol = bar == barCount - 1
+            ? scale.BuildDiatonicChord(key.RootPitchClass, degree: 0, extension: 0)
+            : plan.Chords[(ArrangementStructure.ChordOffset(section) + (int)(bar % 4)) % plan.Chords.Count];
+        return Chord.TryParse(symbol, out var chord)
+            ? chord
+            : throw new InvalidDataException("The arrangement contains an unsupported chord.");
     }
 
     private static int[] BuildVoicing(Chord chord, int[]? previousVoicing, long bar, int seed)
@@ -402,6 +439,27 @@ internal sealed class MidiComposer : IMidiComposer
                 (TicksPerQuarterNote + EighthNoteTicks, EighthNoteTicks, 0.62),
                 (TicksPerQuarterNote * 2L + EighthNoteTicks, TicksPerQuarterNote - 30L, 0.78)
             ],
+            "dembow" =>
+            [
+                (0, TicksPerQuarterNote * 2L - 28, 0.94),
+                (EighthNoteTicks * 3L, TicksPerQuarterNote - 24L, 0.68),
+                (TicksPerQuarterNote * 2L + EighthNoteTicks, TicksPerQuarterNote - 30L, 0.82)
+            ],
+            "bossa" =>
+            [
+                (0, TicksPerQuarterNote + 18L, 0.82),
+                (TicksPerQuarterNote + EighthNoteTicks, TicksPerQuarterNote - 24L, 0.64),
+                (TicksPerQuarterNote * 2L, TicksPerQuarterNote + 12L, 0.76),
+                (TicksPerQuarterNote * 3L + EighthNoteTicks, EighthNoteTicks, 0.56)
+            ],
+            "trap" => [(0, TicksPerQuarterNote * 4L - 24, 0.9)],
+            "disco" =>
+            [
+                (EighthNoteTicks, EighthNoteTicks, 0.78),
+                (TicksPerQuarterNote + EighthNoteTicks, EighthNoteTicks, 0.72),
+                (TicksPerQuarterNote * 2L + EighthNoteTicks, EighthNoteTicks, 0.78),
+                (TicksPerQuarterNote * 3L + EighthNoteTicks, EighthNoteTicks, 0.72)
+            ],
             _ => [(0, TicksPerQuarterNote * 2L - 24, 0.94),
                 (TicksPerQuarterNote * 2L, TicksPerQuarterNote - 30, 0.72)]
         };
@@ -443,6 +501,30 @@ internal sealed class MidiComposer : IMidiComposer
             return [(0, 0, 2, 0.94), (2, 4, 1, 0.72), (3, 0, 1, 0.80)];
         }
 
+        if (groove == "dembow")
+        {
+            return [(0, 0, 2, 0.96), (2, 4, 1, 0.72), (3, bar % 2 == 0 ? 0 : 4, 1, 0.82)];
+        }
+
+        if (groove == "bossa")
+        {
+            return bar % 2 == 0
+                ? [(0, 0, 1, 0.90), (1, 4, 1, 0.60), (2, 0, 1, 0.78), (3, 4, 1, 0.66)]
+                : [(0, 0, 2, 0.88), (2, 4, 1, 0.60), (3, 0, 1, 0.70)];
+        }
+
+        if (groove == "trap")
+        {
+            return bar % 2 == 0
+                ? [(0, 0, 2, 1.0), (2, 4, 1, 0.64), (3, 0, 1, 0.78)]
+                : [(0, 0, 1, 0.94), (1, 4, 1, 0.58), (2, 0, 2, 0.84)];
+        }
+
+        if (groove == "disco")
+        {
+            return [(0, 0, 1, 0.94), (1, 4, 1, 0.62), (2, 0, 1, 0.82), (3, 4, 1, 0.66)];
+        }
+
         if (groove == "broken-beat")
         {
             return [(0, 0, 1, 1.0), (1, 4, 1, 0.62), (2, 0, 1, 0.84), (3, 4, 1, 0.70)];
@@ -468,6 +550,10 @@ internal sealed class MidiComposer : IMidiComposer
             "swing" or "shuffle" => new[] { 0, 2, 3, 4, 6 },
             "broken-beat" => new[] { 0, 2, 5, 6 },
             "clave" => new[] { 0, 3, 4, 6 },
+            "dembow" => bar % 2 == 0 ? new[] { 0, 3, 4, 6, 7 } : new[] { 0, 2, 4, 6 },
+            "bossa" => bar % 2 == 0 ? new[] { 0, 2, 4, 6 } : new[] { 0, 3, 4, 7 },
+            "trap" => bar % 2 == 0 ? new[] { 0, 3, 4, 7 } : new[] { 0, 2, 4, 6 },
+            "disco" => new[] { 1, 3, 5, 7 },
             "arpeggiated" => new[] { 0, 2, 4, 6 },
             _ => new[] { 0, 2, 4, 7 }
         };
@@ -579,6 +665,40 @@ internal sealed class MidiComposer : IMidiComposer
                 hits.Add((4, 75, 38));
                 hits.Add((7, 75, 33));
                 break;
+            case "dembow":
+                hits.Add((0, 36, 78));
+                hits.Add((3, 36, (bar % 2 == 0) ? 54 : 64));
+                hits.Add((2, 38, 57));
+                hits.Add((6, 38, 62));
+                for (var step = 0; step < 8; step += 2) hits.Add((step, 42, step == 4 ? 34 : 25));
+                if (bar % 2 == 1) hits.Add((7, 42, 20));
+                break;
+            case "bossa":
+                hits.Add((0, 36, 58));
+                hits.Add((4, 36, 48));
+                hits.Add((2, 37, 39));
+                hits.Add((6, 37, 44));
+                for (var step = 0; step < 8; step += 2) hits.Add((step, 42, step == 0 || step == 4 ? 31 : 24));
+                if (bar % 4 == 3) hits.Add((7, 37, 32));
+                break;
+            case "trap":
+                hits.Add((0, 36, 82));
+                hits.Add((4, 38, 70));
+                if (bar % 2 == 0) hits.Add((6, 36, 56));
+                for (var step = 0; step < 8; step++)
+                {
+                    if (bar % 2 == 0 || step is 0 or 2 or 4 or 6)
+                    {
+                        hits.Add((step, step is 3 or 7 ? 46 : 42, step % 2 == 0 ? 30 : 21));
+                    }
+                }
+                break;
+            case "disco":
+                for (var beat = 0; beat < BeatsPerBar; beat++) hits.Add((beat * 2, 36, beat % 2 == 0 ? 80 : 66));
+                hits.Add((2, 38, 54));
+                hits.Add((6, 38, 58));
+                for (var step = 1; step < 8; step += 2) hits.Add((step, step == 7 ? 46 : 42, step == 7 ? 39 : 27));
+                break;
             case "arpeggiated":
                 if (bar % 4 == 3) hits.Add((6, 51, 24));
                 break;
@@ -597,11 +717,70 @@ internal sealed class MidiComposer : IMidiComposer
             hits.Add((7, 38, 50));
         }
 
+        if ((bar + (uint)seed) % 4 == 3 && groove is ("lofi" or "dembow" or "trap" or "disco"))
+        {
+            hits.Add((7, groove == "trap" ? 36 : 38, groove == "trap" ? 43 : 38));
+        }
+
+        if ((bar + (uint)seed) % 2 == 1)
+        {
+            for (var index = 0; index < hits.Count; index++)
+            {
+                var hit = hits[index];
+                if (hit.Note is 42 or 44 or 46)
+                {
+                    hits[index] = (hit.Step, hit.Note, Math.Max(12, hit.Velocity - 4));
+                }
+            }
+        }
+
         return hits;
     }
 
     private static int SwingOffset(string groove, int step) =>
         groove is ("swing" or "shuffle") && step % 2 == 1 ? EighthNoteTicks / 3 : 0;
+
+    private static long GroovePocketOffset(string groove, int seed, long bar, int step, int role)
+    {
+        if (step % 4 == 0)
+        {
+            return 0;
+        }
+
+        var range = groove switch
+        {
+            "ambient" or "cinematic" or "pulse" => 3,
+            "swing" or "shuffle" => 5,
+            "lofi" or "bossa" => 9,
+            "dembow" or "trap" or "disco" => 12,
+            _ => 7
+        };
+        var value = StableHash(seed, bar, step, role);
+        return (long)(value % (uint)(range * 2 + 1)) - range;
+    }
+
+    private static int VaryDrumVelocity(int note, int velocity, int step, long bar, int seed)
+    {
+        if (note is not (42 or 44 or 46))
+        {
+            return velocity;
+        }
+
+        var variation = (int)(StableHash(seed, bar, step, note) % 9) - 4;
+        var metricAccent = step % 4 == 0 ? 3 : step % 2 == 0 ? 0 : -2;
+        return Math.Clamp(velocity + variation + metricAccent, 1, 127);
+    }
+
+    private static uint StableHash(int seed, long bar, int step, int role)
+    {
+        var value = unchecked((uint)seed) ^ unchecked((uint)bar * 0x9E3779B9u) ^
+            unchecked((uint)step * 0x85EBCA6Bu) ^ unchecked((uint)role * 0xC2B2AE35u);
+        value ^= value >> 16;
+        value *= 0x7FEB352Du;
+        value ^= value >> 15;
+        value *= 0x846CA68Bu;
+        return value ^ (value >> 16);
+    }
 
     private static double SectionIntensity(ArrangementSection section, long bar, long barCount, string density)
     {
@@ -615,52 +794,18 @@ internal sealed class MidiComposer : IMidiComposer
 
     private static (int Chords, int Bass, int Lead) GetPrograms(ArrangementPlan plan)
     {
-        var variant = plan.PaletteVariant % 3;
-        return plan.InstrumentSet switch
+        var palettes = plan.InstrumentSet switch
         {
-            "ambient" => variant switch
-            {
-                0 => (89, 38, 91),
-                1 => (4, 32, 73),
-                _ => (10, 39, 88)
-            },
-            "lofi" => variant switch
-            {
-                0 => (4, 33, 11),
-                1 => (0, 32, 10),
-                _ => (5, 33, 12)
-            },
-            "pop" => variant switch
-            {
-                0 => (4, 33, 80),
-                1 => (0, 33, 11),
-                _ => (89, 38, 80)
-            },
-            "electronic" => variant switch
-            {
-                0 => (88, 38, 81),
-                1 => (90, 39, 80),
-                _ => (81, 38, 87)
-            },
-            "cinematic" => variant switch
-            {
-                0 => (48, 43, 52),
-                1 => (0, 43, 73),
-                _ => (50, 48, 52)
-            },
-            "rock" => variant switch
-            {
-                0 => (27, 34, 29),
-                1 => (25, 33, 30),
-                _ => (28, 34, 27)
-            },
-            _ => variant switch
-            {
-                0 => (0, 32, 73),
-                1 => (24, 32, 11),
-                _ => (4, 32, 65)
-            }
+            "ambient" => new[] { (89, 38, 91), (4, 32, 73), (10, 39, 88), (92, 38, 89), (88, 33, 91), (89, 39, 78), (48, 38, 73), (5, 32, 90) },
+            "lofi" => new[] { (4, 33, 11), (0, 32, 10), (5, 33, 12), (3, 34, 11), (11, 32, 73), (24, 33, 10), (89, 38, 74), (5, 38, 80) },
+            "pop" => new[] { (4, 33, 80), (0, 33, 11), (89, 38, 80), (5, 34, 65), (24, 33, 73), (48, 32, 81), (10, 38, 80), (4, 32, 87) },
+            "electronic" => new[] { (88, 38, 81), (90, 39, 80), (81, 39, 87), (89, 38, 82), (5, 39, 88), (4, 38, 80), (90, 34, 81), (88, 39, 86) },
+            "cinematic" => new[] { (48, 43, 52), (0, 43, 73), (50, 48, 52), (48, 32, 89), (52, 43, 91), (89, 38, 73), (60, 43, 56), (48, 39, 80) },
+            "rock" => new[] { (27, 34, 29), (25, 33, 30), (28, 34, 27), (30, 38, 80), (26, 34, 65), (27, 32, 30), (48, 34, 29), (29, 39, 80) },
+            _ => new[] { (0, 32, 73), (24, 32, 11), (4, 32, 65), (46, 32, 73), (25, 33, 11), (0, 33, 76), (10, 32, 68), (5, 34, 72) }
         };
+
+        return palettes[plan.PaletteVariant % palettes.Length];
     }
 
     private enum TrackRole
@@ -673,28 +818,29 @@ internal sealed class MidiComposer : IMidiComposer
 
     private static void WriteMixerControls(MidiTrackWriter track, byte channel, ArrangementPlan plan, TrackRole role)
     {
-        var (volume, pan) = (plan.MixProfile, role) switch
+        var volume = (plan.MixProfile, role) switch
         {
-            ("spacious", TrackRole.Chords) => (70, 48),
-            ("spacious", TrackRole.Bass) => (82, 64),
-            ("spacious", TrackRole.Lead) => (72, 82),
-            ("spacious", TrackRole.Drums) => (67, 62),
-            ("intimate", TrackRole.Chords) => (72, 55),
-            ("intimate", TrackRole.Bass) => (82, 64),
-            ("intimate", TrackRole.Lead) => (76, 72),
-            ("intimate", TrackRole.Drums) => (64, 64),
-            ("warm", TrackRole.Chords) => (76, 54),
-            ("warm", TrackRole.Bass) => (80, 64),
-            ("warm", TrackRole.Lead) => (72, 74),
-            ("warm", TrackRole.Drums) => (66, 62),
-            ("balanced", TrackRole.Chords) => (72, 54),
-            ("balanced", TrackRole.Bass) => (82, 64),
-            ("balanced", TrackRole.Lead) => (74, 74),
-            _ => (68, 64)
+            ("spacious", TrackRole.Chords) => 70,
+            ("spacious", TrackRole.Bass) => 82,
+            ("spacious", TrackRole.Lead) => 72,
+            ("spacious", TrackRole.Drums) => 67,
+            ("intimate", TrackRole.Chords) => 72,
+            ("intimate", TrackRole.Bass) => 82,
+            ("intimate", TrackRole.Lead) => 76,
+            ("intimate", TrackRole.Drums) => 64,
+            ("warm", TrackRole.Chords) => 76,
+            ("warm", TrackRole.Bass) => 80,
+            ("warm", TrackRole.Lead) => 72,
+            ("warm", TrackRole.Drums) => 66,
+            ("balanced", TrackRole.Chords) => 72,
+            ("balanced", TrackRole.Bass) => 82,
+            ("balanced", TrackRole.Lead) => 74,
+            _ => 68
         };
 
         track.WriteAt(0, (byte)(0xB0 | channel), 7, (byte)volume);
-        track.WriteAt(0, (byte)(0xB0 | channel), 10, (byte)pan);
+        // FFmpeg applies the user-facing pan to each rendered stem; keep MIDI pan neutral.
+        track.WriteAt(0, (byte)(0xB0 | channel), 10, 64);
     }
 
     private static IReadOnlyList<MidiControllerEvent> CreateExpressionEvents(

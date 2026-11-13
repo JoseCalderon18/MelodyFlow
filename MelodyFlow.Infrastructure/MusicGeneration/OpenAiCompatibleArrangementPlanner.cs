@@ -48,9 +48,9 @@ internal sealed class OpenAiCompatibleArrangementPlanner(
                         "{\"schemaVersion\":1,\"tempoBpm\":96,\"key\":\"A minor\",\"scale\":\"dorian\",\"groove\":\"lofi\",\"instrumentSet\":\"lofi\",\"form\":\"aaba\",\"textureDensity\":\"balanced\",\"mixProfile\":\"warm\",\"paletteVariant\":1,\"chords\":[\"Am7\",\"Dm9\",\"G7\",\"Em7\"],\"variationSeed\":123}. " +
                         "Use a tempo from 50 to 180 BPM, a supported major/minor tonal center, and 4 to 16 chord symbols. " +
                         "Supported seven-note scales: ionian, dorian, phrygian, lydian, mixolydian, aeolian, locrian, harmonic-minor, melodic-minor. " +
-                        "Supported grooves: ambient, lofi, backbeat, four-on-floor, cinematic, pulse, arpeggiated, shuffle, swing, broken-beat, clave. " +
+                        "Supported grooves: ambient, lofi, backbeat, four-on-floor, cinematic, pulse, arpeggiated, shuffle, swing, broken-beat, clave, dembow, bossa, trap, disco. " +
                         "Supported forms: evolving-arc, aaba, build-break-return, cinematic-arc, steady-groove. " +
-                        "Supported textureDensity: sparse, balanced, layered. Supported mixProfile: intimate, balanced, spacious, warm. paletteVariant must be 0, 1, or 2. " +
+                        "Supported textureDensity: sparse, balanced, layered. Supported mixProfile: intimate, balanced, spacious, warm. paletteVariant must be between 0 and 7. " +
                         "Supported instrumentSet values: ambient, lofi, pop, electronic, cinematic, rock, acoustic. " +
                         "Choose a form, groove, chord progression, density, mix and palette that fit the supplied genre and mood. Use connected voice leading, clear phrase endings, chord tones on strong melody beats, and avoid reusing the same pattern throughout the whole track. " +
                         "Supported chord suffixes are empty, maj, m, min, dim, aug, sus2, sus4, 7, maj7, m7, min7, m7b5, dim7, 6, m6, maj9, m9, 9, mMaj7."
@@ -204,7 +204,8 @@ internal sealed class OpenAiCompatibleArrangementPlanner(
             Form = request.PreferredForm ?? plan.Form,
             TextureDensity = request.TextureDensity ?? plan.TextureDensity,
             MixProfile = request.MixProfile ?? plan.MixProfile,
-            PaletteVariant = (plan.PaletteVariant + (int)((unchecked((uint)seed) >> 8) % 3)) % 3
+            PaletteVariant = (plan.PaletteVariant + (int)((unchecked((uint)seed) >> 8) % 8)) % 8,
+            Mixer = request.Mixer ?? plan.Mixer
         };
     }
 

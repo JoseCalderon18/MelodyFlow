@@ -77,6 +77,11 @@ internal static class ArrangementStructure
             return [];
         }
 
+        if (barCount < 12)
+        {
+            return CreateShortForm(barCount);
+        }
+
         if (!Forms.TryGetValue(form, out var template))
         {
             template = Forms["evolving-arc"];
@@ -114,6 +119,52 @@ internal static class ArrangementStructure
         }
 
         return result;
+    }
+
+    private static IReadOnlyList<ArrangementSection> CreateShortForm(long barCount)
+    {
+        if (barCount == 1)
+        {
+            return [new ArrangementSection("Tema", ArrangementSectionType.Theme, 0, 1, 0.72)];
+        }
+
+        if (barCount == 2)
+        {
+            return
+            [
+                new ArrangementSection("Tema", ArrangementSectionType.Theme, 0, 1, 0.72),
+                new ArrangementSection("Cierre", ArrangementSectionType.Outro, 1, 2, 0.42)
+            ];
+        }
+
+        if (barCount == 3)
+        {
+            return
+            [
+                new ArrangementSection("Entrada", ArrangementSectionType.Intro, 0, 1, 0.45),
+                new ArrangementSection("Tema", ArrangementSectionType.Theme, 1, 2, 0.76),
+                new ArrangementSection("Cierre", ArrangementSectionType.Outro, 2, 3, 0.42)
+            ];
+        }
+
+        var introBars = 1L;
+        var remaining = barCount - introBars;
+        var themeBars = Math.Max(1, remaining / 2);
+        var variationBars = Math.Max(1, remaining / 4);
+        var returnBars = remaining - themeBars - variationBars;
+        if (returnBars < 1)
+        {
+            variationBars--;
+            returnBars = 1;
+        }
+
+        var sections = new List<ArrangementSection>();
+        var start = 0L;
+        sections.Add(new ArrangementSection("Entrada", ArrangementSectionType.Intro, start, ++start, 0.45));
+        sections.Add(new ArrangementSection("Tema", ArrangementSectionType.Theme, start, start += themeBars, 0.76));
+        sections.Add(new ArrangementSection("Variación", ArrangementSectionType.Variation, start, start += variationBars, 0.92));
+        sections.Add(new ArrangementSection("Regreso", ArrangementSectionType.Return, start, start + returnBars, 0.96));
+        return sections;
     }
 
     public static ArrangementSection At(IReadOnlyList<ArrangementSection> sections, long bar) =>

@@ -263,6 +263,14 @@ public partial class Home : IAsyncDisposable
                 string.IsNullOrWhiteSpace(form.PreferredForm) ? null : form.PreferredForm,
                 string.IsNullOrWhiteSpace(form.TextureDensity) ? null : form.TextureDensity,
                 string.IsNullOrWhiteSpace(form.MixProfile) ? null : form.MixProfile,
+                form.ChordsGainDb,
+                form.BassGainDb,
+                form.LeadGainDb,
+                form.DrumsGainDb,
+                form.ChordsPan / 50d,
+                form.BassPan / 50d,
+                form.LeadPan / 50d,
+                form.DrumsPan / 50d,
                 CancellationToken.None);
             project = null;
             renderedVideo = null;
@@ -604,6 +612,14 @@ public partial class Home : IAsyncDisposable
         form.PreferredForm = null;
         form.TextureDensity = null;
         form.MixProfile = null;
+        form.ChordsGainDb = 0;
+        form.BassGainDb = 0;
+        form.LeadGainDb = 0;
+        form.DrumsGainDb = 0;
+        form.ChordsPan = 0;
+        form.BassPan = 0;
+        form.LeadPan = 0;
+        form.DrumsPan = 0;
         form.TargetDurationSeconds = 60;
         form.UseAI = false;
     }
@@ -678,6 +694,15 @@ public partial class Home : IAsyncDisposable
         public string? TextureDensity { get; set; }
 
         public string? MixProfile { get; set; }
+
+        public double ChordsGainDb { get; set; }
+        public double BassGainDb { get; set; }
+        public double LeadGainDb { get; set; }
+        public double DrumsGainDb { get; set; }
+        public double ChordsPan { get; set; }
+        public double BassPan { get; set; }
+        public double LeadPan { get; set; }
+        public double DrumsPan { get; set; }
 
         [Range(1, 4800)]
         public int TargetDurationSeconds { get; set; } = 60;

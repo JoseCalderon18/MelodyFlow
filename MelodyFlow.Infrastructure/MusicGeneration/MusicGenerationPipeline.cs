@@ -35,7 +35,6 @@ internal sealed class MusicGenerationPipeline(
 
         var temporaryDirectory = Path.Combine(Path.GetTempPath(), "MelodyFlow", Guid.NewGuid().ToString("N"));
         var midiPath = Path.Combine(temporaryDirectory, "arrangement.mid");
-        var wavPath = Path.Combine(temporaryDirectory, "render.wav");
         var mp3Path = Path.Combine(temporaryDirectory, "track.mp3");
         var storageKey = $"music/{project.Id:D}/{generationJobId:D}.mp3";
 
@@ -43,17 +42,22 @@ internal sealed class MusicGenerationPipeline(
         {
             // MIDI, WAV y MP3 son temporales; solo el MP3 final se copia al almacenamiento compartido.
             Directory.CreateDirectory(temporaryDirectory);
-            await midiComposer.ComposeAsync(plan, project.TargetDurationSeconds, midiPath, cancellationToken);
+            var stems = await midiComposer.ComposeStemsAsync(
+                plan,
+                project.TargetDurationSeconds,
+                midiPath,
+                cancellationToken);
             await reportProgressAsync(45, cancellationToken);
 
             var durationMs = await audioRenderer.RenderMp3Async(
-                midiPath,
-                wavPath,
+                stems,
+                temporaryDirectory,
                 mp3Path,
                 project.TargetDurationSeconds,
                 plan,
+                reportProgressAsync,
                 cancellationToken);
-            await reportProgressAsync(85, cancellationToken);
+            await reportProgressAsync(90, cancellationToken);
 
             await using (var mp3 = new FileStream(
                 mp3Path,

@@ -35,6 +35,14 @@ public sealed class MelodyFlowApiClient(HttpClient httpClient)
         string? preferredForm,
         string? textureDensity,
         string? mixProfile,
+        double chordsGainDb,
+        double bassGainDb,
+        double leadGainDb,
+        double drumsGainDb,
+        double chordsPan,
+        double bassPan,
+        double leadPan,
+        double drumsPan,
         CancellationToken cancellationToken)
     {
         var requestedParameters = new Dictionary<string, object?>
@@ -55,6 +63,17 @@ public sealed class MelodyFlowApiClient(HttpClient httpClient)
         AddIfProvided(requestedParameters, "preferredForm", preferredForm);
         AddIfProvided(requestedParameters, "textureDensity", textureDensity);
         AddIfProvided(requestedParameters, "mixProfile", mixProfile);
+        requestedParameters["mixer"] = new
+        {
+            chordsGainDb,
+            bassGainDb,
+            leadGainDb,
+            drumsGainDb,
+            chordsPan,
+            bassPan,
+            leadPan,
+            drumsPan
+        };
 
         using var parameters = JsonDocument.Parse(JsonSerializer.Serialize(requestedParameters));
         var request = new CreateGenerationJobRequest

@@ -29,6 +29,8 @@ internal sealed record ArrangementPlan(
     public string MixProfile { get; init; } = string.Empty;
 
     public int PaletteVariant { get; init; }
+
+    public StemMixSettings Mixer { get; init; } = new();
 }
 
 internal static partial class ArrangementPlanParser
@@ -109,10 +111,12 @@ internal static partial class ArrangementPlanParser
             throw new InvalidDataException("The arrangement mix profile is not supported.");
         }
 
-        if (plan.PaletteVariant is < 0 or > 2)
+        if (plan.PaletteVariant is < 0 or > 7)
         {
-            throw new InvalidDataException("The arrangement palette variant must be between 0 and 2.");
+            throw new InvalidDataException("The arrangement palette variant must be between 0 and 7.");
         }
+
+        var mixer = (plan.Mixer ?? new StemMixSettings()).Validate();
 
         return plan with
         {
@@ -121,7 +125,8 @@ internal static partial class ArrangementPlanParser
             InstrumentSet = instrumentSet,
             Form = form,
             TextureDensity = density,
-            MixProfile = mixProfile
+            MixProfile = mixProfile,
+            Mixer = mixer
         };
     }
 
