@@ -51,6 +51,7 @@ internal sealed class MusicGenerationPipeline(
                 wavPath,
                 mp3Path,
                 project.TargetDurationSeconds,
+                plan,
                 cancellationToken);
             await reportProgressAsync(85, cancellationToken);
 

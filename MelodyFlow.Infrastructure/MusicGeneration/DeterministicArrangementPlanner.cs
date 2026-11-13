@@ -8,15 +8,15 @@ internal static class DeterministicArrangementPlanner
 {
     private static readonly IReadOnlyDictionary<string, int[][]> Progressions = new Dictionary<string, int[][]>(StringComparer.OrdinalIgnoreCase)
     {
-        ["ionian"] = [[0, 4, 5, 3], [0, 5, 3, 4], [0, 3, 4, 0]],
-        ["dorian"] = [[0, 3, 6, 4], [0, 4, 3, 6], [0, 6, 4, 0]],
-        ["phrygian"] = [[0, 6, 5, 0], [0, 1, 5, 0], [0, 6, 3, 6]],
-        ["lydian"] = [[0, 4, 1, 5], [0, 5, 4, 0], [0, 1, 4, 5]],
-        ["mixolydian"] = [[0, 6, 3, 0], [0, 4, 6, 3], [0, 5, 4, 0]],
-        ["aeolian"] = [[0, 5, 2, 6], [0, 6, 5, 6], [0, 3, 6, 5]],
-        ["locrian"] = [[0, 1, 5, 0], [0, 4, 1, 5], [0, 5, 4, 1]],
-        ["harmonic-minor"] = [[0, 5, 6, 0], [0, 3, 4, 0], [0, 6, 5, 0]],
-        ["melodic-minor"] = [[0, 4, 3, 6], [0, 5, 2, 0], [0, 3, 4, 6]]
+        ["ionian"] = [[0, 4, 5, 3], [0, 5, 3, 4], [0, 3, 4, 0], [0, 2, 5, 4], [0, 6, 2, 5], [0, 4, 1, 5]],
+        ["dorian"] = [[0, 3, 6, 4], [0, 4, 3, 6], [0, 6, 4, 0], [0, 5, 3, 4], [0, 2, 5, 3], [0, 4, 1, 5]],
+        ["phrygian"] = [[0, 6, 5, 0], [0, 1, 5, 0], [0, 6, 3, 6], [0, 4, 1, 5], [0, 2, 1, 6], [0, 5, 2, 0]],
+        ["lydian"] = [[0, 4, 1, 5], [0, 5, 4, 0], [0, 1, 4, 5], [0, 2, 5, 4], [0, 6, 2, 5], [0, 3, 4, 1]],
+        ["mixolydian"] = [[0, 6, 3, 0], [0, 4, 6, 3], [0, 5, 4, 0], [0, 3, 6, 4], [0, 1, 4, 5], [0, 2, 5, 4]],
+        ["aeolian"] = [[0, 5, 2, 6], [0, 6, 5, 6], [0, 3, 6, 5], [0, 4, 5, 3], [0, 2, 6, 5], [0, 5, 3, 4]],
+        ["locrian"] = [[0, 1, 5, 0], [0, 4, 1, 5], [0, 5, 4, 1], [0, 6, 2, 5], [0, 3, 1, 4], [0, 2, 5, 1]],
+        ["harmonic-minor"] = [[0, 5, 6, 0], [0, 3, 4, 0], [0, 6, 5, 0], [0, 4, 1, 5], [0, 2, 6, 5], [0, 5, 3, 4]],
+        ["melodic-minor"] = [[0, 4, 3, 6], [0, 5, 2, 0], [0, 3, 4, 6], [0, 2, 5, 4], [0, 6, 3, 5], [0, 4, 1, 5]]
     };
 
     public static ArrangementPlan Create(MusicProject project, MusicGenerationRequest request, int seed)
@@ -36,7 +36,7 @@ internal static class DeterministicArrangementPlanner
         var scale = MusicalScaleCatalog.GetRequired(scaleName);
         var keyName = $"{MusicalScaleCatalog.PitchClassNames[root]} {(scale.MinorColor ? "minor" : "major")}";
         var tempo = request.PreferredTempoBpm ?? SelectTempo(project, seed);
-        var style = ArrangementStyleCatalog.ForProject(project);
+        var style = ArrangementStyleCatalog.ForProject(project, seed, request);
         var positiveSeed = unchecked((uint)seed);
         var patterns = Progressions[scale.Name];
         var firstPatternIndex = (int)(positiveSeed % (uint)patterns.Length);
@@ -52,14 +52,28 @@ internal static class DeterministicArrangementPlanner
             .Concat(patterns[firstPatternIndex].Take(firstRotation))
             .Concat(patterns[secondPatternIndex].Skip(secondRotation))
             .Concat(patterns[secondPatternIndex].Take(secondRotation));
-        var chords = chordDegrees.Select(degree => scale.BuildDiatonicTriad(root, degree)).ToArray();
+        var chords = chordDegrees.Select((degree, index) =>
+        {
+            var extensionSelector = (int)((positiveSeed + (uint)(index * 5)) % 7);
+            var extension = extensionSelector switch
+            {
+                0 or 1 when style.InstrumentSet is "lofi" or "pop" or "acoustic" => 1,
+                4 when style.InstrumentSet is "ambient" or "cinematic" or "electronic" => 2,
+                _ => 0
+            };
+            return scale.BuildDiatonicChord(root, degree, extension);
+        }).ToArray();
 
         return new ArrangementPlan(1, tempo, keyName, chords, seed)
         {
             UsedAI = false,
             Scale = scale.Name,
             Groove = style.Groove,
-            InstrumentSet = style.InstrumentSet
+            InstrumentSet = style.InstrumentSet,
+            Form = style.Form,
+            TextureDensity = style.TextureDensity,
+            MixProfile = style.MixProfile,
+            PaletteVariant = (int)((positiveSeed >> 8) % 3)
         };
     }
 

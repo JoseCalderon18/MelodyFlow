@@ -31,6 +31,10 @@ public sealed class MelodyFlowApiClient(HttpClient httpClient)
         bool useAI,
         string? preferredKey,
         string? preferredScale,
+        string? preferredGroove,
+        string? preferredForm,
+        string? textureDensity,
+        string? mixProfile,
         CancellationToken cancellationToken)
     {
         var requestedParameters = new Dictionary<string, object?>
@@ -47,6 +51,11 @@ public sealed class MelodyFlowApiClient(HttpClient httpClient)
             requestedParameters["preferredScale"] = preferredScale;
         }
 
+        AddIfProvided(requestedParameters, "preferredGroove", preferredGroove);
+        AddIfProvided(requestedParameters, "preferredForm", preferredForm);
+        AddIfProvided(requestedParameters, "textureDensity", textureDensity);
+        AddIfProvided(requestedParameters, "mixProfile", mixProfile);
+
         using var parameters = JsonDocument.Parse(JsonSerializer.Serialize(requestedParameters));
         var request = new CreateGenerationJobRequest
         {
@@ -58,6 +67,14 @@ public sealed class MelodyFlowApiClient(HttpClient httpClient)
         await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<GenerationJobResponse>(cancellationToken)
             ?? throw new InvalidDataException("La API devolvió una respuesta vacía al crear el trabajo.");
+    }
+
+    private static void AddIfProvided(IDictionary<string, object?> values, string key, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            values[key] = value;
+        }
     }
 
     public async Task<GenerationJobResponse?> GetMusicJobAsync(Guid jobId, CancellationToken cancellationToken)

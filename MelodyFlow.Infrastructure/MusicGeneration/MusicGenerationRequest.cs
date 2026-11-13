@@ -9,7 +9,11 @@ internal sealed record MusicGenerationRequest(
     int? VariationSeed,
     int? PreferredTempoBpm,
     string? PreferredKey,
-    string? PreferredScale)
+    string? PreferredScale,
+    string? PreferredGroove = null,
+    string? PreferredForm = null,
+    string? TextureDensity = null,
+    string? MixProfile = null)
 {
     public static MusicGenerationRequest Parse(string json)
     {
@@ -26,6 +30,10 @@ internal sealed record MusicGenerationRequest(
             int? tempo = null;
             string? key = null;
             string? scale = null;
+            string? groove = null;
+            string? form = null;
+            string? density = null;
+            string? mixProfile = null;
             foreach (var property in document.RootElement.EnumerateObject())
             {
                 switch (property.Name)
@@ -47,18 +55,34 @@ internal sealed record MusicGenerationRequest(
                         MusicalScaleCatalog.TryGet(property.Value.GetString(), out _):
                         scale = property.Value.GetString();
                         break;
+                    case "preferredGroove" when property.Value.ValueKind == JsonValueKind.String &&
+                        ArrangementStyleCatalog.IsSupportedGroove(property.Value.GetString()!):
+                        groove = property.Value.GetString();
+                        break;
+                    case "preferredForm" when property.Value.ValueKind == JsonValueKind.String &&
+                        ArrangementStyleCatalog.IsSupportedForm(property.Value.GetString()!):
+                        form = property.Value.GetString();
+                        break;
+                    case "textureDensity" when property.Value.ValueKind == JsonValueKind.String &&
+                        ArrangementStyleCatalog.IsSupportedDensity(property.Value.GetString()!):
+                        density = property.Value.GetString();
+                        break;
+                    case "mixProfile" when property.Value.ValueKind == JsonValueKind.String &&
+                        ArrangementStyleCatalog.IsSupportedMixProfile(property.Value.GetString()!):
+                        mixProfile = property.Value.GetString();
+                        break;
                     default:
                         throw new JsonException("A music parameter was invalid or not recognized.");
                 }
             }
 
-            return new MusicGenerationRequest(useAI, seed, tempo, key, scale);
+            return new MusicGenerationRequest(useAI, seed, tempo, key, scale, groove, form, density, mixProfile);
         }
         catch (JsonException exception)
         {
             throw new MusicGenerationException(
                 "unsupported_music_preferences",
-                "Music job parameters may contain useAI, variationSeed, preferredTempoBpm, preferredKey, and preferredScale.",
+                "Music job parameters contain an invalid value. Supported options include AI, tempo, key, scale, groove, form, density, and mix profile.",
                 isTransient: false,
                 exception);
         }

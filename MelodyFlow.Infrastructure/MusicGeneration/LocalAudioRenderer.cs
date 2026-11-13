@@ -16,22 +16,49 @@ internal sealed class LocalAudioRenderer(IOptions<MusicGenerationOptions> option
         string wavPath,
         string mp3Path,
         int targetDurationSeconds,
+        ArrangementPlan plan,
         CancellationToken cancellationToken)
     {
         var settings = options.Value;
+        var (roomSize, reverbLevel, reverbDamp, reverbWidth, chorusActive, chorusLevel, chorusDepth) =
+            EffectsFor(plan.MixProfile);
+        var fluidsynthArguments = new List<string>
+        {
+            "-n", "-i", "-q", "-T", "wav", "-F", wavPath, "-r", "44100",
+            "-o", "synth.gain=0.18",
+            "-o", "synth.reverb.active=1",
+            "-o", $"synth.reverb.room-size={FormatFluidValue(roomSize)}",
+            "-o", $"synth.reverb.level={FormatFluidValue(reverbLevel)}",
+            "-o", $"synth.reverb.damp={FormatFluidValue(reverbDamp)}",
+            "-o", $"synth.reverb.width={FormatFluidValue(reverbWidth)}",
+            "-o", $"synth.chorus.active={(chorusActive ? 1 : 0)}",
+            "-o", $"synth.chorus.level={FormatFluidValue(chorusLevel)}",
+            "-o", "synth.chorus.nr=3",
+            "-o", "synth.chorus.speed=0.25",
+            "-o", $"synth.chorus.depth={FormatFluidValue(chorusDepth)}",
+            settings.SoundFontPath,
+            midiPath
+        };
         // Indicamos WAV de forma explícita: sin esta opción FluidSynth genera muestras sin cabecera.
         await RunToolAsync(
             settings.FluidSynthPath,
-            ["-n", "-i", "-q", "-T", "wav", "-F", wavPath, "-r", "44100", settings.SoundFontPath, midiPath],
+            fluidsynthArguments,
             cancellationToken);
 
-        // Limita la duración y elimina metadatos heredados del archivo de salida.
+        var fadeSeconds = Math.Min(1.8, targetDurationSeconds * 0.18);
+        var fadeOutStart = Math.Max(0, targetDurationSeconds - fadeSeconds);
+        var fadeFilter = string.Join(",",
+            $"afade=t=in:st=0:d={FormatFluidValue(fadeSeconds)}:curve=hsin",
+            $"afade=t=out:st={FormatFluidValue(fadeOutStart)}:d={FormatFluidValue(fadeSeconds)}:curve=hsin");
+
+        // Conserva el rango dinámico y añade fades cortos para evitar cortes secos en los extremos.
         await RunToolAsync(
             settings.FfmpegPath,
             [
                 "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", wavPath,
                 "-t", targetDurationSeconds.ToString(CultureInfo.InvariantCulture),
-                "-codec:a", "libmp3lame", "-q:a", "2", "-map_metadata", "-1", mp3Path
+                "-af", fadeFilter,
+                "-codec:a", "libmp3lame", "-q:a", "2", "-ar", "44100", "-map_metadata", "-1", mp3Path
             ],
             cancellationToken);
 
@@ -55,6 +82,17 @@ internal sealed class LocalAudioRenderer(IOptions<MusicGenerationOptions> option
 
         return checked((long)Math.Round(duration * 1_000, MidpointRounding.AwayFromZero));
     }
+
+    private static (double Room, double Reverb, double Damp, double Width, bool Chorus, double ChorusLevel, double ChorusDepth)
+        EffectsFor(string mixProfile) => mixProfile switch
+        {
+            "intimate" => (0.18, 0.26, 0.72, 0.45, false, 0, 4.0),
+            "warm" => (0.28, 0.36, 0.62, 0.65, true, 0.16, 5.0),
+            "spacious" => (0.48, 0.45, 0.56, 0.85, true, 0.28, 6.0),
+            _ => (0.30, 0.32, 0.66, 0.72, true, 0.18, 4.5)
+        };
+
+    private static string FormatFluidValue(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
     private async Task<string> RunToolAsync(
         string configuredExecutable,

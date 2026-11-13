@@ -34,6 +34,47 @@ internal sealed record MusicalScaleDefinition(string Name, IReadOnlyList<int> Se
         var pitchClass = (rootPitchClass + root) % 12;
         return MusicalScaleCatalog.PitchClassNames[pitchClass] + quality;
     }
+
+    /// <summary>Construye triadas y extensiones diatónicas sin perder la función del modo.</summary>
+    public string BuildDiatonicChord(int rootPitchClass, int degree, int extension)
+    {
+        var triad = BuildDiatonicTriad(rootPitchClass, degree);
+        if (extension is not (1 or 2))
+        {
+            return triad;
+        }
+
+        const int degreesPerOctave = 7;
+        var normalizedDegree = ((degree % degreesPerOctave) + degreesPerOctave) % degreesPerOctave;
+        var scaleRoot = Semitones[normalizedDegree];
+        var thirdIndex = normalizedDegree + 2;
+        var fifthIndex = normalizedDegree + 4;
+        var seventhIndex = normalizedDegree + 6;
+        var third = Semitones[thirdIndex % degreesPerOctave] + (thirdIndex >= degreesPerOctave ? 12 : 0) - scaleRoot;
+        var fifth = Semitones[fifthIndex % degreesPerOctave] + (fifthIndex >= degreesPerOctave ? 12 : 0) - scaleRoot;
+        var seventh = Semitones[seventhIndex % degreesPerOctave] + (seventhIndex >= degreesPerOctave ? 12 : 0) - scaleRoot;
+        var suffix = (third, fifth, seventh, extension) switch
+        {
+            (4, 7, 11, 1) => "maj7",
+            (4, 7, 11, 2) => "maj9",
+            (3, 7, 10, 1) => "m7",
+            (3, 7, 10, 2) => "m9",
+            (4, 7, 10, 1) => "7",
+            (4, 7, 10, 2) => "9",
+            (3, 6, 10, 1 or 2) => "m7b5",
+            (3, 6, 9, 1 or 2) => "dim7",
+            (3, 7, 11, 1 or 2) => "mMaj7",
+            _ => string.Empty
+        };
+
+        if (string.IsNullOrEmpty(suffix))
+        {
+            return triad;
+        }
+
+        var rootLength = triad.Length > 1 && triad[1] is '#' or 'b' ? 2 : 1;
+        return triad[..rootLength] + suffix;
+    }
 }
 
 /// <summary>

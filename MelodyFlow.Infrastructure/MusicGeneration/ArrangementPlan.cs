@@ -21,6 +21,14 @@ internal sealed record ArrangementPlan(
     public string Groove { get; init; } = string.Empty;
 
     public string InstrumentSet { get; init; } = string.Empty;
+
+    public string Form { get; init; } = string.Empty;
+
+    public string TextureDensity { get; init; } = string.Empty;
+
+    public string MixProfile { get; init; } = string.Empty;
+
+    public int PaletteVariant { get; init; }
 }
 
 internal static partial class ArrangementPlanParser
@@ -83,7 +91,38 @@ internal static partial class ArrangementPlanParser
             throw new InvalidDataException("The arrangement instrument set is not supported.");
         }
 
-        return plan with { Scale = scale.Name, Groove = groove, InstrumentSet = instrumentSet };
+        var form = string.IsNullOrWhiteSpace(plan.Form) ? "evolving-arc" : plan.Form;
+        if (!ArrangementStyleCatalog.IsSupportedForm(form))
+        {
+            throw new InvalidDataException("The arrangement form is not supported.");
+        }
+
+        var density = string.IsNullOrWhiteSpace(plan.TextureDensity) ? "balanced" : plan.TextureDensity;
+        if (!ArrangementStyleCatalog.IsSupportedDensity(density))
+        {
+            throw new InvalidDataException("The arrangement texture density is not supported.");
+        }
+
+        var mixProfile = string.IsNullOrWhiteSpace(plan.MixProfile) ? "balanced" : plan.MixProfile;
+        if (!ArrangementStyleCatalog.IsSupportedMixProfile(mixProfile))
+        {
+            throw new InvalidDataException("The arrangement mix profile is not supported.");
+        }
+
+        if (plan.PaletteVariant is < 0 or > 2)
+        {
+            throw new InvalidDataException("The arrangement palette variant must be between 0 and 2.");
+        }
+
+        return plan with
+        {
+            Scale = scale.Name,
+            Groove = groove,
+            InstrumentSet = instrumentSet,
+            Form = form,
+            TextureDensity = density,
+            MixProfile = mixProfile
+        };
     }
 
     [GeneratedRegex("^(?<root>[A-G](?:#|b)?)\\s+(?<mode>major|minor)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -186,7 +225,11 @@ internal readonly record struct Chord(int RootPitchClass, IReadOnlyList<int> Int
         ["m7b5"] = [0, 3, 6, 10],
         ["dim7"] = [0, 3, 6, 9],
         ["6"] = [0, 4, 7, 9],
-        ["m6"] = [0, 3, 7, 9]
+        ["m6"] = [0, 3, 7, 9],
+        ["maj9"] = [0, 4, 7, 11, 14],
+        ["m9"] = [0, 3, 7, 10, 14],
+        ["9"] = [0, 4, 7, 10, 14],
+        ["mMaj7"] = [0, 3, 7, 11]
     };
 
     public string TransposeSymbol(int semitones)

@@ -259,6 +259,10 @@ public partial class Home : IAsyncDisposable
                 form.UseAI,
                 string.IsNullOrWhiteSpace(form.PreferredKey) ? null : form.PreferredKey,
                 string.IsNullOrWhiteSpace(form.PreferredScale) ? null : form.PreferredScale,
+                string.IsNullOrWhiteSpace(form.PreferredGroove) ? null : form.PreferredGroove,
+                string.IsNullOrWhiteSpace(form.PreferredForm) ? null : form.PreferredForm,
+                string.IsNullOrWhiteSpace(form.TextureDensity) ? null : form.TextureDensity,
+                string.IsNullOrWhiteSpace(form.MixProfile) ? null : form.MixProfile,
                 CancellationToken.None);
             project = null;
             renderedVideo = null;
@@ -596,6 +600,10 @@ public partial class Home : IAsyncDisposable
         form.Mood = null;
         form.PreferredKey = null;
         form.PreferredScale = null;
+        form.PreferredGroove = null;
+        form.PreferredForm = null;
+        form.TextureDensity = null;
+        form.MixProfile = null;
         form.TargetDurationSeconds = 60;
         form.UseAI = false;
     }
@@ -662,6 +670,14 @@ public partial class Home : IAsyncDisposable
         public string? PreferredKey { get; set; }
 
         public string? PreferredScale { get; set; }
+
+        public string? PreferredGroove { get; set; }
+
+        public string? PreferredForm { get; set; }
+
+        public string? TextureDensity { get; set; }
+
+        public string? MixProfile { get; set; }
 
         [Range(1, 4800)]
         public int TargetDurationSeconds { get; set; } = 60;
