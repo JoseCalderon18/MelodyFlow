@@ -2,6 +2,7 @@ using System.Text.Json;
 using MelodyFlow.Application.Jobs;
 using MelodyFlow.Application.Media;
 using MelodyFlow.Application.Music;
+using MelodyFlow.Application.Projects;
 using MelodyFlow.Domain.Entities;
 using MelodyFlow.Domain.Enums;
 
@@ -12,6 +13,7 @@ public sealed class RenderedVideoApplicationService(
     IRenderedVideoRepository videos,
     IVisualAssetRepository assets,
     IMusicTrackRepository tracks,
+    IMusicProjectRepository projects,
     IArtifactStorage storage,
     GenerationJobApplicationService jobs)
 {
@@ -19,19 +21,30 @@ public sealed class RenderedVideoApplicationService(
         Guid projectId,
         Guid musicTrackId,
         Guid visualAssetId,
-        string title,
+        string? title,
         string? idempotencyKey,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(title) || title.Trim().Length > RenderedVideo.MaxTitleLength)
+        if (title?.Trim().Length > RenderedVideo.MaxTitleLength)
         {
-            throw new ArgumentException($"Video title must contain 1 to {RenderedVideo.MaxTitleLength} characters.", nameof(title));
+            throw new ArgumentException($"Video title cannot exceed {RenderedVideo.MaxTitleLength} characters.", nameof(title));
+        }
+
+        var project = await projects.GetByIdAsync(projectId, cancellationToken);
+        if (project is null)
+        {
+            return new CreateVideoRenderResult(null, CreateVideoRenderOutcome.ProjectNotFound);
         }
 
         var track = await tracks.GetByIdAsync(musicTrackId, cancellationToken);
         if (track is null || !await storage.ExistsAsync(track.StorageKey, cancellationToken))
         {
             return new CreateVideoRenderResult(null, CreateVideoRenderOutcome.TrackNotFound);
+        }
+
+        if (track.MusicProjectId != project.Id)
+        {
+            return new CreateVideoRenderResult(null, CreateVideoRenderOutcome.TrackNotInProject);
         }
 
         var visual = await assets.GetByIdAsync(visualAssetId, cancellationToken);
@@ -45,11 +58,14 @@ public sealed class RenderedVideoApplicationService(
             throw new ArgumentException("Video rendering supports music tracks up to 30 minutes with a measured duration.");
         }
 
+        var resolvedTitle = string.IsNullOrWhiteSpace(title)
+            ? RenderedVideoTitleGenerator.Generate(track.Title, project.Genre, project.Mood)
+            : title.Trim();
         var parameters = JsonSerializer.Serialize(new
         {
             musicTrackId,
             visualAssetId,
-            title = title.Trim()
+            title = resolvedTitle
         });
         var result = await jobs.CreateAsync(projectId, JobType.Render, parameters, idempotencyKey, cancellationToken);
         return result.Outcome switch
@@ -111,7 +127,8 @@ public enum CreateVideoRenderOutcome
     IdempotencyConflict,
     ProjectNotFound,
     TrackNotFound,
-    VisualAssetNotFound
+    VisualAssetNotFound,
+    TrackNotInProject
 }
 
 public sealed record CreateVideoRenderResult(GenerationJob? Job, CreateVideoRenderOutcome Outcome);

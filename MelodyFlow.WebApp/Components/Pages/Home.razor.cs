@@ -527,7 +527,7 @@ public partial class Home : IAsyncDisposable
                 projectId,
                 trackId,
                 visualId,
-                string.IsNullOrWhiteSpace(videoTitle) ? selectedTrack.Title : videoTitle,
+                string.IsNullOrWhiteSpace(videoTitle) ? null : videoTitle,
                 CancellationToken.None);
             videoTitle = string.Empty;
             StartProgressPolling(job.Id);

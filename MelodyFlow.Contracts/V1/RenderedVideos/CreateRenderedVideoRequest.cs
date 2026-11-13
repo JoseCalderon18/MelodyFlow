@@ -14,6 +14,6 @@ public sealed class CreateRenderedVideoRequest
     [Required]
     public Guid VisualAssetId { get; init; }
 
-    [Required, StringLength(200, MinimumLength = 1)]
-    public string Title { get; init; } = string.Empty;
+    [StringLength(200)]
+    public string? Title { get; init; }
 }

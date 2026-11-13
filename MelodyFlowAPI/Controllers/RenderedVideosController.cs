@@ -65,6 +65,11 @@ public sealed class RenderedVideosController(RenderedVideoApplicationService vid
             return Problem(statusCode: StatusCodes.Status404NotFound, title: "Video clip not found");
         }
 
+        if (result.Outcome == CreateVideoRenderOutcome.TrackNotInProject)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Music track does not belong to the selected project");
+        }
+
         if (result.Outcome == CreateVideoRenderOutcome.IdempotencyConflict)
         {
             return Problem(statusCode: StatusCodes.Status409Conflict, title: "Idempotency key already used");
@@ -113,7 +118,7 @@ public sealed class RenderedVideosController(RenderedVideoApplicationService vid
         var content = await videos.OpenVideoAsync(video, cancellationToken);
         return content is null
             ? Problem(statusCode: StatusCodes.Status404NotFound, title: "Rendered MP4 file not found")
-            : File(content, "video/mp4", $"{video.Title}.mp4", enableRangeProcessing: true);
+            : File(content, "video/mp4", ToDownloadFileName(video.Title), enableRangeProcessing: true);
     }
 
     [HttpDelete("{id:guid}")]
@@ -148,6 +153,16 @@ public sealed class RenderedVideosController(RenderedVideoApplicationService vid
         video.FileSizeBytes,
         video.CreatedAt,
         $"/api/v1/rendered-videos/{video.Id:D}/content");
+
+    private static string ToDownloadFileName(string title)
+    {
+        const string windowsInvalidCharacters = "<>:\"/\\|?*";
+        var safeTitle = new string(title
+            .Select(character => char.IsControl(character) || windowsInvalidCharacters.Contains(character) ? '-' : character)
+            .ToArray())
+            .Trim(' ', '.');
+        return $"{(string.IsNullOrWhiteSpace(safeTitle) ? "MelodyFlow-video" : safeTitle)}.mp4";
+    }
 
     private static GenerationJobResponse Map(GenerationJob job) => new(
         job.Id,

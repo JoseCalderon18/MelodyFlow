@@ -195,7 +195,7 @@ public sealed class MelodyFlowApiClient(HttpClient httpClient)
         Guid projectId,
         Guid trackId,
         Guid visualAssetId,
-        string title,
+        string? title,
         CancellationToken cancellationToken)
     {
         var request = new CreateRenderedVideoRequest
