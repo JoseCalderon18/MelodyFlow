@@ -127,6 +127,11 @@ internal static class MusicalScaleCatalog
             return ["lydian", "ionian", "mixolydian", "dorian"];
         }
 
+        if (ContainsAny(context, "romantic", "romántic", "romance", "love", "amor", "ballad", "balada"))
+        {
+            return ["ionian", "dorian", "aeolian", "harmonic-minor", "melodic-minor"];
+        }
+
         if (ContainsAny(context, "pop", "rock", "latin", "rnb", "energetic", "energ", "upbeat"))
         {
             return ["ionian", "mixolydian", "dorian", "aeolian", "lydian", "melodic-minor"];

@@ -171,13 +171,6 @@ internal static class ArrangementStructure
         sections.FirstOrDefault(section => bar >= section.StartBar && bar < section.EndBar)
         ?? sections[^1];
 
-    public static int ChordOffset(ArrangementSection section) => section.Type switch
-    {
-        ArrangementSectionType.Variation => 4,
-        ArrangementSectionType.Return => 0,
-        _ => 0
-    };
-
     public static double DensityMultiplier(string density) => density switch
     {
         "sparse" => 0.74,

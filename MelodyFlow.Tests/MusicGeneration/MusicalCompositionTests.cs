@@ -5,6 +5,49 @@ namespace MelodyFlow.Tests.MusicGeneration;
 
 public sealed class MusicalCompositionTests
 {
+    [Theory]
+    [InlineData("ionian")]
+    [InlineData("dorian")]
+    [InlineData("phrygian")]
+    [InlineData("lydian")]
+    [InlineData("mixolydian")]
+    [InlineData("aeolian")]
+    [InlineData("locrian")]
+    [InlineData("harmonic-minor")]
+    [InlineData("melodic-minor")]
+    public void DeterministicPlanContainsFourDistinctHarmonicPhrases(string scaleName)
+    {
+        var project = new MusicProject("Romantic variation", "pop", 60, "romantic");
+        var request = new MusicGenerationRequest(
+            UseAI: false,
+            VariationSeed: 5821,
+            PreferredTempoBpm: null,
+            PreferredKey: "A",
+            PreferredScale: scaleName);
+
+        var plan = DeterministicArrangementPlanner.Create(project, request, seed: 5821);
+        var phraseBlocks = plan.Chords.Chunk(4)
+            .Select(block => string.Join('|', block))
+            .ToArray();
+
+        Assert.Equal(16, plan.Chords.Count);
+        Assert.Equal(4, phraseBlocks.Length);
+        Assert.Equal(4, phraseBlocks.Distinct(StringComparer.Ordinal).Count());
+        Assert.All(plan.Chords, symbol => Assert.True(Chord.TryParse(symbol, out _), symbol));
+    }
+
+    [Fact]
+    public void HarmonicPhrasePlannerUsesDifferentBlocksForThemeAndVariation()
+    {
+        var theme = new ArrangementSection("Tema", ArrangementSectionType.Theme, 0, 8, 0.7);
+        var variation = new ArrangementSection("Variación", ArrangementSectionType.Variation, 8, 16, 0.9);
+
+        Assert.Equal(0, HarmonicPhrasePlanner.GetChordIndex(16, theme, bar: 0));
+        Assert.Equal(4, HarmonicPhrasePlanner.GetChordIndex(16, theme, bar: 4));
+        Assert.Equal(8, HarmonicPhrasePlanner.GetChordIndex(16, variation, bar: 8));
+        Assert.Equal(12, HarmonicPhrasePlanner.GetChordIndex(16, variation, bar: 12));
+    }
+
     [Fact]
     public void CatalogProvides108RootAndScaleCombinations()
     {

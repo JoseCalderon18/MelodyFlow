@@ -39,19 +39,22 @@ internal static class DeterministicArrangementPlanner
         var style = ArrangementStyleCatalog.ForProject(project, seed, request);
         var positiveSeed = unchecked((uint)seed);
         var patterns = Progressions[scale.Name];
+        // Give the composer four related but distinct four-bar harmonic phrases. Previously
+        // the plan held only two phrases and the MIDI writer replayed one of them for whole
+        // sections, which made longer songs feel like the same loop with different drums.
         var firstPatternIndex = (int)(positiveSeed % (uint)patterns.Length);
-        var secondPatternIndex = (int)((positiveSeed >> 4) % (uint)patterns.Length);
-        if (secondPatternIndex == firstPatternIndex)
+        var patternStep = (positiveSeed & 1) == 0 ? 1 : patterns.Length - 1;
+        var chordDegrees = Enumerable.Range(0, 4).SelectMany(phraseIndex =>
         {
-            secondPatternIndex = (secondPatternIndex + 1) % patterns.Length;
-        }
-
-        var firstRotation = (int)((positiveSeed >> 8) % 4);
-        var secondRotation = (int)((positiveSeed >> 12) % 4);
-        var chordDegrees = patterns[firstPatternIndex].Skip(firstRotation)
-            .Concat(patterns[firstPatternIndex].Take(firstRotation))
-            .Concat(patterns[secondPatternIndex].Skip(secondRotation))
-            .Concat(patterns[secondPatternIndex].Take(secondRotation));
+            var patternIndex = (firstPatternIndex + (phraseIndex * patternStep)) % patterns.Length;
+            var pattern = patterns[patternIndex];
+            // Establish the tonic in phrase A; later phrases may start on another diatonic
+            // degree to create motion while retaining the selected scale.
+            var rotation = phraseIndex == 0
+                ? 0
+                : (int)((positiveSeed >> (8 + phraseIndex * 3)) % 4);
+            return pattern.Skip(rotation).Concat(pattern.Take(rotation));
+        });
         var chords = chordDegrees.Select((degree, index) =>
         {
             var extensionSelector = (int)((positiveSeed + (uint)(index * 5)) % 7);
@@ -98,6 +101,11 @@ internal static class DeterministicArrangementPlanner
         if (ContainsAny(mood, "calm", "chill", "relax", "calmado", "tranquilo", "sleep"))
         {
             return 66 + offset;
+        }
+
+        if (ContainsAny(mood, "romantic", "romántic", "romance", "love", "amor", "ballad", "balada"))
+        {
+            return 72 + offset;
         }
 
         if (ContainsAny(genre, "house", "dance", "techno", "electronic"))

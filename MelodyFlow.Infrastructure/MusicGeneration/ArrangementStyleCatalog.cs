@@ -62,6 +62,10 @@ internal static class ArrangementStyleCatalog
         {
             style = new ArrangementStyle("cinematic", "cinematic", "cinematic-arc", "layered", "spacious");
         }
+        else if (ContainsAny(genre, "romantic", "romántic", "romance", "ballad", "balada"))
+        {
+            style = new ArrangementStyle("backbeat", "acoustic", "aaba", "balanced", "warm");
+        }
         else if (ContainsAny(genre, "rock", "metal", "punk"))
         {
             style = new ArrangementStyle("backbeat", "rock", "build-break-return", "layered", "balanced");

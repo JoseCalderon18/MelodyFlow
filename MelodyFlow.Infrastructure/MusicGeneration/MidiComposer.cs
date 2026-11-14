@@ -269,7 +269,8 @@ internal sealed class MidiComposer : IMidiComposer
             var barChord = ChordForBar(plan, key, scale, section, bar, barCount);
 
             // Keep the motif recognizable, but change its shape/transposition every phrase.
-            var motifVariant = ((int)((unchecked((uint)plan.VariationSeed) >> 14) % 4) + phraseIndex) % 4;
+            var motifVariant = ((int)((unchecked((uint)plan.VariationSeed) >> 14) % 8) + phraseIndex) % 8;
+            var finalStep = rhythm.Count == 0 ? 7 : rhythm.Max();
             foreach (var step in rhythm.Order())
             {
                 if (step == 7 && random.Next(0, 4) == 0)
@@ -293,7 +294,14 @@ internal sealed class MidiComposer : IMidiComposer
                     degree += random.Next(0, 2) == 0 ? 2 : -2;
                 }
 
-                if (step % 4 == 0)
+                var isPhraseEnding = phraseBar == 3 && step == finalStep;
+                var isSectionResolution = bar == section.EndBar - 1 && step == finalStep &&
+                    section.Type is ArrangementSectionType.Return or ArrangementSectionType.Outro;
+                if ((bar == barCount - 1 && step == finalStep) || isSectionResolution)
+                {
+                    degree = 0;
+                }
+                else if (step % 4 == 0 || isPhraseEnding)
                 {
                     degree = MoveToChordTone(degree, barChord, key, scale);
                 }
@@ -382,9 +390,11 @@ internal sealed class MidiComposer : IMidiComposer
         long bar,
         long barCount)
     {
-        var symbol = bar == barCount - 1
+        var resolvesAtSectionEnd = bar == section.EndBar - 1 &&
+            section.Type is ArrangementSectionType.Return or ArrangementSectionType.Outro;
+        var symbol = bar == barCount - 1 || resolvesAtSectionEnd
             ? scale.BuildDiatonicChord(key.RootPitchClass, degree: 0, extension: 0)
-            : plan.Chords[(ArrangementStructure.ChordOffset(section) + (int)(bar % 4)) % plan.Chords.Count];
+            : plan.Chords[HarmonicPhrasePlanner.GetChordIndex(plan.Chords.Count, section, bar)];
         return Chord.TryParse(symbol, out var chord)
             ? chord
             : throw new InvalidDataException("The arrangement contains an unsupported chord.");
@@ -619,7 +629,11 @@ internal sealed class MidiComposer : IMidiComposer
             0 => [0, 2, 4, 2, 1, 3, 4, 6],
             1 => [4, 3, 2, 0, 2, 1, 0, 1],
             2 => [2, 4, 5, 4, 2, 0, 1, 2],
-            _ => [0, 1, 3, 2, 4, 3, 1, 0]
+            3 => [0, 1, 3, 2, 4, 3, 1, 0],
+            4 => [0, 3, 4, 6, 4, 3, 2, 1],
+            5 => [4, 2, 1, 3, 2, 0, 1, 0],
+            6 => [0, 2, 3, 5, 4, 2, 1, 3],
+            _ => [2, 4, 6, 5, 3, 2, 0, 1]
         };
 
         // Keep one identifiable motif through the song; the B section answers it in reverse
