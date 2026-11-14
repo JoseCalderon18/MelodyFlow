@@ -57,4 +57,30 @@ public sealed class MusicalCompositionTests
             if (File.Exists(secondPath)) File.Delete(secondPath);
         }
     }
+
+    [Fact]
+    public async Task ComposerHandlesLongMelodyPhraseTransitions()
+    {
+        const int durationSeconds = 600;
+        var project = new MusicProject("Long composition", "ambient", durationSeconds, "calm");
+        var request = new MusicGenerationRequest(
+            UseAI: false,
+            VariationSeed: 7319,
+            PreferredTempoBpm: null,
+            PreferredKey: null,
+            PreferredScale: null);
+        var plan = DeterministicArrangementPlanner.Create(project, request, seed: 7319);
+        var midiPath = Path.Combine(Path.GetTempPath(), $"melodyflow-{Guid.NewGuid():N}-long.mid");
+
+        try
+        {
+            await new MidiComposer().ComposeAsync(plan, durationSeconds, midiPath, CancellationToken.None);
+
+            Assert.True(new FileInfo(midiPath).Length > 0);
+        }
+        finally
+        {
+            if (File.Exists(midiPath)) File.Delete(midiPath);
+        }
+    }
 }

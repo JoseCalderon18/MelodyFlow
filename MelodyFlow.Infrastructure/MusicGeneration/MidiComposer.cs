@@ -256,7 +256,7 @@ internal sealed class MidiComposer : IMidiComposer
             var barsIntoSection = bar - section.StartBar;
             var phraseIndex = (int)(barsIntoSection / 4);
             var phraseBar = (int)(barsIntoSection % 4);
-            var phraseTranspose = phraseIndex % 4 switch
+            var phraseTranspose = (phraseIndex % 4) switch
             {
                 1 => 2,
                 2 => -1,
