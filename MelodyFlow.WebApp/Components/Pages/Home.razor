@@ -67,7 +67,7 @@
                     <p class="field-hint">Cada parte se renderiza por separado. Ajusta su nivel y panorama; luego FluidSynth y FFmpeg crean la mezcla final con el espacio y los efectos seleccionados.</p>
                 </details>
                 <div class="field-row duration-row">
-                    <div class="field-block"><label for="duration">Duración</label><InputSelect id="duration" class="studio-input" @bind-Value="form.TargetDurationSeconds" disabled="@submitting"><option value="30">30 segundos · prueba rápida</option><option value="60">1 minuto</option><option value="120">2 minutos</option><option value="180">3 minutos</option><option value="300">5 minutos</option><option value="480">8 minutos</option></InputSelect></div>
+                    <div class="field-block"><label for="duration">Duración</label><InputSelect id="duration" class="studio-input" @bind-Value="form.TargetDurationSeconds" disabled="@submitting"><option value="30">30 segundos · prueba rápida</option><option value="60">1 minuto</option><option value="120">2 minutos</option><option value="180">3 minutos</option><option value="300">5 minutos</option><option value="480">8 minutos</option><option value="600">10 minutos</option><option value="900">15 minutos</option><option value="1200">20 minutos</option><option value="1800">30 minutos</option><option value="3600">1 hora</option></InputSelect></div>
                     <div class="ai-option"><div class="ai-icon">✳</div><div class="ai-copy"><strong>Propuesta de IA</strong><span>Desactivada por defecto</span></div><InputCheckbox id="use-ai" class="studio-toggle" @bind-Value="form.UseAI" disabled="@submitting" /></div>
                 </div>
                 <ValidationSummary />
@@ -184,11 +184,39 @@
             </section>
             <section class="dashboard-panel clip-render-panel">
                 <div class="section-heading compact-heading"><div><p class="eyebrow">MONTAJE LOCAL</p><h2>2. Combina música y vídeo</h2></div><span class="heading-orb">♫</span></div>
-                <div class="field-block"><label for="render-track">Canción</label><InputSelect id="render-track" class="studio-input" @bind-Value="selectedMusicTrackId" disabled="@renderingVideo"><option value="">Elige una canción</option>@foreach (var item in tracks) { <option value="@item.Id">@item.Title · @FormatDuration(item.DurationMs)</option> }</InputSelect></div>
+                <div class="field-block">
+                    <label>Canciones <span class="field-hint">@selectedMusicTrackIds.Count seleccionadas · el orden de selección marca el orden de reproducción</span></label>
+                    <div class="render-track-list">
+                        @foreach (var item in renderTracks)
+                        {
+                            var selectionOrder = selectedMusicTrackIds.IndexOf(item.Id);
+                            <div class="render-track-option">
+                                <label>
+                                    <input type="checkbox" checked="@(selectionOrder >= 0)" @onchange="args => ToggleVideoTrack(item.Id, args)" disabled="@(renderingVideo || (selectionOrder < 0 && selectedMusicTrackIds.Count >= RenderedVideoSelectionLimit))" />
+                                    <span><strong>@item.Title</strong><small>@FormatDuration(item.DurationMs) · @ProjectGenre(item.MusicProjectId)</small></span>
+                                </label>
+                                @if (selectionOrder >= 0)
+                                {
+                                    <span class="playlist-position">@(selectionOrder + 1)</span>
+                                    <div class="playlist-order-actions">
+                                        <button type="button" @onclick="() => MoveVideoTrack(item.Id, -1)" disabled="@(renderingVideo || selectionOrder == 0)" aria-label="Mover @item.Title antes">↑</button>
+                                        <button type="button" @onclick="() => MoveVideoTrack(item.Id, 1)" disabled="@(renderingVideo || selectionOrder == selectedMusicTrackIds.Count - 1)" aria-label="Mover @item.Title después">↓</button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                    @if (renderTracks.Count < renderTrackCount)
+                    {
+                        <button class="text-action" type="button" @onclick="LoadMoreRenderTracksAsync" disabled="@loadingRenderTracks">@(loadingRenderTracks ? "Cargando…" : "Cargar más canciones")</button>
+                    }
+                    <small class="field-hint">Puedes elegir hasta @RenderedVideoSelectionLimit canciones de distintos proyectos. Se funden con una transición corta.</small>
+                </div>
                 <div class="field-block"><label for="render-clip">Clip visual</label><InputSelect id="render-clip" class="studio-input" @bind-Value="selectedVisualAssetId" disabled="@renderingVideo"><option value="">Elige un clip MP4</option>@foreach (var asset in visualAssets) { <option value="@asset.Id">@asset.FileName</option> }</InputSelect></div>
+                <div class="field-block"><label for="video-duration">Duración final</label><InputSelect id="video-duration" class="studio-input" @bind-Value="videoDurationMinutes" disabled="@renderingVideo"><option value="10">10 minutos</option><option value="15">15 minutos</option><option value="20">20 minutos</option><option value="30">30 minutos</option><option value="60">1 hora</option><option value="90">1 hora y 30 minutos</option><option value="120">2 horas</option></InputSelect><small class="field-hint">La música se encadena en el orden elegido, se repite si falta y se desvanece al final. El clip visual también se repite y el resultado se recorta a esta duración.</small></div>
                 <div class="field-block"><label for="render-title">Nombre del videoclip</label><InputText id="render-title" class="studio-input" @bind-Value="videoTitle" placeholder="Automático: canción · ambiente y género" disabled="@renderingVideo" /><small class="field-hint">Déjalo vacío para crear un título como “Nombre de canción | Relaxing Ambient Music”.</small></div>
-                <button class="generate-button" type="button" @onclick="CreateVideoRenderAsync" disabled="@(renderingVideo || tracks.Count == 0 || visualAssets.Count == 0)">@if (renderingVideo) { <span class="button-spinner"></span><span>Encolando montaje…</span> } else { <span>▣</span><span>Crear videoclip</span><span class="button-arrow">→</span> }</button>
-                <p class="form-footnote">FFmpeg repite el clip si hace falta, lo recorta a la duración de la canción y conserva solo el audio de la pista.</p>
+                <button class="generate-button" type="button" @onclick="CreateVideoRenderAsync" disabled="@(renderingVideo || selectedMusicTrackIds.Count == 0 || visualAssets.Count == 0)">@if (renderingVideo) { <span class="button-spinner"></span><span>Encolando montaje…</span> } else { <span>▣</span><span>Crear videoclip · @selectedMusicTrackIds.Count canciones</span><span class="button-arrow">→</span> }</button>
+                <p class="form-footnote">Los vídeos de hasta 2 horas pueden ocupar bastante espacio y tardar en renderizarse.</p>
             </section>
         </div>
         <section class="rendered-video-library" id="videos">
@@ -206,7 +234,7 @@
                             <video controls preload="none" src="@Api.GetVideoUri(item.VideoUrl).ToString()"></video>
                             <div>
                                 <strong>@item.Title</strong>
-                                <span>@FormatDuration(item.DurationMs) · @item.WidthPx×@item.HeightPx · @FormatBytes(item.FileSizeBytes)</span>
+                                <span>@item.MusicTrackIds.Count canciones · @FormatDuration(item.DurationMs) · @item.WidthPx×@item.HeightPx · @FormatBytes(item.FileSizeBytes)</span>
                                 <div class="rendered-video-actions">
                                     <a href="@Api.GetVideoUri(item.VideoUrl).ToString()" download>Descargar MP4 ↓</a>
                                     <button class="delete-button" type="button" @onclick="() => DeleteRenderedVideoAsync(item)" disabled="@(deletingMediaId is not null)" aria-label="Eliminar videoclip @item.Title" title="Eliminar videoclip">Eliminar</button>

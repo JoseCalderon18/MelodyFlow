@@ -19,6 +19,6 @@ public sealed class CreateMusicProjectRequest
     [StringLength(80)]
     public string? Mood { get; init; }
 
-    [Range(1, int.MaxValue)]
+    [Range(1, 3_600)]
     public int TargetDurationSeconds { get; init; }
 }

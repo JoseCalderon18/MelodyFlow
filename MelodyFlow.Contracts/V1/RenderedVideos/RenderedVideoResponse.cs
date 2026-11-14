@@ -7,6 +7,7 @@ public sealed record RenderedVideoResponse(
     Guid RenderJobId,
     Guid VisualAssetId,
     Guid MusicTrackId,
+    IReadOnlyList<Guid> MusicTrackIds,
     string Title,
     long DurationMs,
     int WidthPx,

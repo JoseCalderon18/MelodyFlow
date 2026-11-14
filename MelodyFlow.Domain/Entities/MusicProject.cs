@@ -53,12 +53,12 @@ public sealed class MusicProject
         Genre = RequiredText(genre, nameof(genre), 80);
         Mood = OptionalText(mood, nameof(mood), 80);
 
-        if (targetDurationSeconds <= 0)
+        if (targetDurationSeconds is < 1 or > 3_600)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(targetDurationSeconds),
                 targetDurationSeconds,
-                "Target duration must be greater than zero.");
+                "Target duration must be between 1 second and 1 hour.");
         }
 
         TargetDurationSeconds = targetDurationSeconds;

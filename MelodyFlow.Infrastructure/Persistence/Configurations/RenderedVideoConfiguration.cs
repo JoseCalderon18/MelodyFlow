@@ -32,6 +32,10 @@ public sealed class RenderedVideoConfiguration : IEntityTypeConfiguration<Render
         builder.HasOne<GenerationJob>().WithMany().HasForeignKey(video => video.RenderJobId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<VisualAsset>().WithMany().HasForeignKey(video => video.VisualAssetId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<MusicTrack>().WithMany().HasForeignKey(video => video.MusicTrackId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasMany(video => video.MusicTracks)
+            .WithOne()
+            .HasForeignKey(track => track.RenderedVideoId)
+            .OnDelete(DeleteBehavior.Cascade);
         builder.HasIndex(video => video.RenderJobId).IsUnique().HasDatabaseName("ux_rendered_videos_render_job_id");
         builder.HasIndex(video => new { video.MusicProjectId, video.CreatedAt })
             .HasDatabaseName("ix_rendered_videos_project_created_at");

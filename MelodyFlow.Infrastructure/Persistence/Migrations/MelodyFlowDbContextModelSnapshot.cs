@@ -354,6 +354,36 @@ namespace MelodyFlow.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MelodyFlow.Domain.Entities.RenderedVideoTrack", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("MusicTrackId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("music_track_id");
+
+                    b.Property<Guid>("RenderedVideoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("rendered_video_id");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("sequence_number");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MusicTrackId")
+                        .HasDatabaseName("ix_rendered_video_tracks_music_track_id");
+
+                    b.HasIndex("RenderedVideoId", "SequenceNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ux_rendered_video_tracks_video_sequence");
+
+                    b.ToTable("rendered_video_tracks", (string)null);
+                });
+
             modelBuilder.Entity("MelodyFlow.Domain.Entities.VisualAsset", b =>
                 {
                     b.Property<Guid>("Id")
@@ -486,6 +516,21 @@ namespace MelodyFlow.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MelodyFlow.Domain.Entities.RenderedVideoTrack", b =>
+                {
+                    b.HasOne("MelodyFlow.Domain.Entities.MusicTrack", null)
+                        .WithMany()
+                        .HasForeignKey("MusicTrackId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MelodyFlow.Domain.Entities.RenderedVideo", null)
+                        .WithMany("MusicTracks")
+                        .HasForeignKey("RenderedVideoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("MelodyFlow.Domain.Entities.VisualAsset", b =>
                 {
                     b.HasOne("MelodyFlow.Domain.Entities.GenerationJob", null)
@@ -497,6 +542,11 @@ namespace MelodyFlow.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("MusicProjectId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MelodyFlow.Domain.Entities.RenderedVideo", b =>
+                {
+                    b.Navigation("MusicTracks");
                 });
 #pragma warning restore 612, 618
         }

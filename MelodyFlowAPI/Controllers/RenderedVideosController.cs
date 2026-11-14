@@ -38,8 +38,9 @@ public sealed class RenderedVideosController(RenderedVideoApplicationService vid
         {
             result = await videos.CreateAsync(
                 request.MusicProjectId,
-                request.MusicTrackId,
+                request.ResolveMusicTrackIds(),
                 request.VisualAssetId,
+                request.TargetDurationSeconds,
                 request.Title,
                 idempotencyKey,
                 cancellationToken);
@@ -144,6 +145,7 @@ public sealed class RenderedVideosController(RenderedVideoApplicationService vid
         video.RenderJobId,
         video.VisualAssetId,
         video.MusicTrackId,
+        video.MusicTracks.OrderBy(item => item.SequenceNumber).Select(item => item.MusicTrackId).ToArray(),
         video.Title,
         video.DurationMs,
         video.WidthPx,

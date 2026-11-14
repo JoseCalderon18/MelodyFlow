@@ -16,42 +16,91 @@ public sealed class LocalVideoRenderer(
 {
     public async Task<VideoRenderArtifact> RenderAsync(
         string visualStorageKey,
-        string musicStorageKey,
+        IReadOnlyList<VideoMusicSource> musicTracks,
         string outputStorageKey,
-        long musicDurationMs,
+        long targetDurationMs,
         Func<int, CancellationToken, Task> reportProgressAsync,
         CancellationToken cancellationToken)
     {
+        if (musicTracks.Count is < 1 or > 20 || targetDurationMs is <= 0 or > 7_200_000 ||
+            musicTracks.Any(track => track.DurationMs < 15_000))
+        {
+            throw new VideoRenderingException(
+                "video_music_selection_invalid",
+                "Choose 1 to 20 songs, each at least 15 seconds long, and a video duration up to 2 hours.",
+                isTransient: false);
+        }
+
         var settings = options.Value;
         var temporaryDirectory = Path.Combine(mediaPaths.TemporaryRoot, "video-renders", Guid.NewGuid().ToString("N"));
         var visualPath = Path.Combine(temporaryDirectory, "visual.mp4");
-        var musicPath = Path.Combine(temporaryDirectory, "music.mp3");
+        var musicPaths = musicTracks.Select((_, index) => Path.Combine(temporaryDirectory, $"music-{index:D2}.mp3")).ToArray();
+        var playlistAudioPath = Path.Combine(temporaryDirectory, "music-playlist.flac");
         var outputPath = Path.Combine(temporaryDirectory, "rendered.mp4");
+        var targetSeconds = targetDurationMs / 1_000d;
+        var playlistSeconds = Math.Min(
+            targetSeconds,
+            musicTracks.Sum(track => track.DurationMs / 1_000d) - 1.5d * Math.Max(0, musicTracks.Count - 1));
 
         Directory.CreateDirectory(temporaryDirectory);
         try
         {
             await CopyStoredFileAsync(visualStorageKey, visualPath, cancellationToken);
-            await CopyStoredFileAsync(musicStorageKey, musicPath, cancellationToken);
+            for (var index = 0; index < musicTracks.Count; index++)
+            {
+                await CopyStoredFileAsync(musicTracks[index].StorageKey, musicPaths[index], cancellationToken);
+            }
+
             await reportProgressAsync(25, cancellationToken);
 
-            await RunToolAsync(settings.FfmpegPath,
-            [
+            var playlistArguments = new List<string>
+            {
                 "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
-                "-progress", "pipe:1", "-nostats",
-                "-stream_loop", "-1", "-i", visualPath,
-                "-i", musicPath,
-                "-map", "0:v:0", "-map", "1:a:0",
-                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
-                "-c:a", "aac", "-b:a", "192k", "-t", (musicDurationMs / 1_000d).ToString("0.###", CultureInfo.InvariantCulture),
-                "-movflags", "+faststart", outputPath
-            ], cancellationToken, async line =>
+                "-progress", "pipe:1", "-nostats"
+            };
+            foreach (var musicPath in musicPaths)
+            {
+                playlistArguments.Add("-i");
+                playlistArguments.Add(musicPath);
+            }
+
+            playlistArguments.AddRange(
+            [
+                "-filter_complex", BuildAudioPlaylistFilter(musicTracks.Count, playlistSeconds),
+                "-map", "[audioout]", "-c:a", "flac", "-sample_fmt", "s16", "-ar", "44100", "-ac", "2",
+                playlistAudioPath
+            ]);
+
+            await RunToolAsync(settings.FfmpegPath, playlistArguments, cancellationToken, async line =>
             {
                 if (TryReadProgressSeconds(line, out var elapsedSeconds))
                 {
-                    var fraction = Math.Clamp(elapsedSeconds / (musicDurationMs / 1_000d), 0, 1);
-                    var percent = 25 + (int)Math.Round(fraction * 65);
+                    var fraction = Math.Clamp(elapsedSeconds / playlistSeconds, 0, 1);
+                    await reportProgressAsync(25 + (int)Math.Round(fraction * 12), cancellationToken);
+                }
+            });
+
+            await reportProgressAsync(40, cancellationToken);
+            var renderArguments = new List<string>
+            {
+                "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+                "-progress", "pipe:1", "-nostats",
+                "-stream_loop", "-1", "-i", visualPath,
+                "-stream_loop", "-1", "-i", playlistAudioPath,
+                "-map", "0:v:0", "-map", "1:a:0",
+                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                "-af", BuildFinalAudioFilter(targetSeconds),
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-b:a", "192k", "-t", targetSeconds.ToString("0.###", CultureInfo.InvariantCulture),
+                "-movflags", "+faststart", outputPath
+            };
+
+            await RunToolAsync(settings.FfmpegPath, renderArguments, cancellationToken, async line =>
+            {
+                if (TryReadProgressSeconds(line, out var elapsedSeconds))
+                {
+                    var fraction = Math.Clamp(elapsedSeconds / targetSeconds, 0, 1);
+                    var percent = 40 + (int)Math.Round(fraction * 50);
                     await reportProgressAsync(Math.Clamp(percent, 25, 90), cancellationToken);
                 }
             });
@@ -107,6 +156,43 @@ public sealed class LocalVideoRenderer(
         }
     }
 
+    private static string BuildAudioPlaylistFilter(int inputCount, double playlistSeconds)
+    {
+        const double crossfadeSeconds = 1.5;
+        var filters = new List<string>(inputCount + 2);
+        for (var index = 0; index < inputCount; index++)
+        {
+            filters.Add(
+                $"[{index}:a]aresample=44100," +
+                "aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo," +
+                $"asetpts=PTS-STARTPTS[a{index}]");
+        }
+
+        var current = "a0";
+        for (var index = 1; index < inputCount; index++)
+        {
+            var next = $"xfade{index}";
+            filters.Add($"[{current}][a{index}]acrossfade=d={crossfadeSeconds.ToString("0.0", CultureInfo.InvariantCulture)}:c1=tri:c2=tri[{next}]");
+            current = next;
+        }
+
+        // A short edge fade softens the seam when the whole playlist must loop for a long video.
+        var edgeFadeSeconds = Math.Min(0.75d, playlistSeconds * 0.05d);
+        var fadeOutStart = Math.Max(0d, playlistSeconds - edgeFadeSeconds);
+        filters.Add(
+            $"[{current}]atrim=duration={playlistSeconds.ToString("0.###", CultureInfo.InvariantCulture)}," +
+            $"afade=t=in:st=0:d={edgeFadeSeconds.ToString("0.###", CultureInfo.InvariantCulture)}:curve=hsin," +
+            $"afade=t=out:st={fadeOutStart.ToString("0.###", CultureInfo.InvariantCulture)}:d={edgeFadeSeconds.ToString("0.###", CultureInfo.InvariantCulture)}:curve=hsin[audioout]");
+        return string.Join(';', filters);
+    }
+
+    private static string BuildFinalAudioFilter(double targetSeconds)
+    {
+        var fadeSeconds = Math.Min(5d, targetSeconds * 0.05d);
+        var fadeStart = Math.Max(0d, targetSeconds - fadeSeconds);
+        return $"afade=t=out:st={fadeStart.ToString("0.###", CultureInfo.InvariantCulture)}:d={fadeSeconds.ToString("0.###", CultureInfo.InvariantCulture)}:curve=hsin";
+    }
+
     private async Task CopyStoredFileAsync(string storageKey, string destinationPath, CancellationToken cancellationToken)
     {
         var stored = await storage.OpenReadAsync(storageKey, cancellationToken);
@@ -144,13 +230,15 @@ public sealed class LocalVideoRenderer(
         ], cancellationToken);
 
         using var document = JsonDocument.Parse(json);
-        var stream = document.RootElement.GetProperty("streams").EnumerateArray()
+        var streams = document.RootElement.GetProperty("streams").EnumerateArray().ToArray();
+        var stream = streams
             .FirstOrDefault(item => item.TryGetProperty("codec_type", out var type) && type.GetString() == "video");
-        if (stream.ValueKind != JsonValueKind.Object)
+        var hasAudio = streams.Any(item => item.TryGetProperty("codec_type", out var type) && type.GetString() == "audio");
+        if (stream.ValueKind != JsonValueKind.Object || !hasAudio)
         {
             throw new VideoRenderingException(
                 "video_output_invalid",
-                "FFmpeg did not produce a video stream that FFprobe can read.",
+                "FFmpeg did not produce a playable MP4 with both video and audio streams.",
                 isTransient: false);
         }
 
@@ -237,7 +325,7 @@ public sealed class LocalVideoRenderer(
             {
                 throw new VideoRenderingException(
                     "video_tool_failed",
-                    "FFmpeg could not combine the selected MP4 clip and music track.",
+                    "FFmpeg could not combine the selected MP4 clip and music tracks.",
                     isTransient: false,
                     new InvalidOperationException($"Local media process failed; diagnostic length {error.Length}."));
             }
@@ -281,6 +369,8 @@ public sealed class LocalVideoRenderer(
             (elapsedSeconds = microseconds / 1_000_000d) >= 0;
     }
 }
+
+public sealed record VideoMusicSource(string StorageKey, long DurationMs);
 
 public sealed record VideoRenderArtifact(long DurationMs, int WidthPx, int HeightPx, string Codec, long FileSizeBytes);
 

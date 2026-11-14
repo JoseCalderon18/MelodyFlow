@@ -11,6 +11,7 @@ public sealed class MelodyFlowDbContext(DbContextOptions<MelodyFlowDbContext> op
     public DbSet<MusicTrack> MusicTracks => Set<MusicTrack>();
     public DbSet<VisualAsset> VisualAssets => Set<VisualAsset>();
     public DbSet<RenderedVideo> RenderedVideos => Set<RenderedVideo>();
+    public DbSet<RenderedVideoTrack> RenderedVideoTracks => Set<RenderedVideoTrack>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

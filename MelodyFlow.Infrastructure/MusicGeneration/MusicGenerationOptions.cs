@@ -11,7 +11,7 @@ public sealed class MusicGenerationOptions
     public string FluidSynthPath { get; init; } = "fluidsynth";
     public string FfmpegPath { get; init; } = "ffmpeg";
     public string FfprobePath { get; init; } = "ffprobe";
-    public int ProcessTimeoutSeconds { get; init; } = 3_600;
+    public int ProcessTimeoutSeconds { get; init; } = 10_800;
 
     /// <summary>Comprueba los requisitos antes de registrar el handler musical del Worker.</summary>
     public IReadOnlyList<string> GetConfigurationProblems()

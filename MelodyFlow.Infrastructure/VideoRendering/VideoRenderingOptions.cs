@@ -7,7 +7,7 @@ public sealed class VideoRenderingOptions
 {
     public string FfmpegPath { get; init; } = "ffmpeg";
     public string FfprobePath { get; init; } = "ffprobe";
-    public int ProcessTimeoutSeconds { get; init; } = 7_200;
+    public int ProcessTimeoutSeconds { get; init; } = 28_800;
 
     public IReadOnlyList<string> GetConfigurationProblems()
     {

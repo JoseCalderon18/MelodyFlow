@@ -239,6 +239,7 @@ internal sealed class MidiComposer : IMidiComposer
         var events = new List<MidiNoteEvent>();
         var controls = CreateExpressionEvents(channel, plan, sections, ticksPerBar, barCount, TrackRole.Lead);
         var random = new Random(plan.VariationSeed ^ 0x2F10A9);
+        var previousNote = -1;
 
         for (long bar = 0; bar < barCount; bar++)
         {
@@ -250,12 +251,24 @@ internal sealed class MidiComposer : IMidiComposer
 
             var section = ArrangementStructure.At(sections, bar);
             var rhythm = MelodySteps(plan.Groove, bar, plan.VariationSeed, plan.TextureDensity, section);
+            var barsIntoSection = bar - section.StartBar;
+            var phraseIndex = (int)(barsIntoSection / 4);
+            var phraseBar = (int)(barsIntoSection % 4);
+            var phraseTranspose = phraseIndex % 4 switch
+            {
+                1 => 2,
+                2 => -1,
+                3 => 1,
+                _ => 0
+            };
             var motifOffset = (int)((unchecked((uint)plan.VariationSeed) % 7 +
                 (section.Type == ArrangementSectionType.Variation ? 2u : 0u)) % 7);
             var intensity = SectionIntensity(section, bar, barCount, plan.TextureDensity);
             var barChord = ChordForBar(plan, key, scale, section, bar, barCount);
 
-            foreach (var step in rhythm)
+            // Keep the motif recognizable, but change its shape/transposition every phrase.
+            var motifVariant = ((int)((unchecked((uint)plan.VariationSeed) >> 14) % 4) + phraseIndex) % 4;
+            foreach (var step in rhythm.Order())
             {
                 if (step == 7 && random.Next(0, 4) == 0)
                 {
@@ -264,16 +277,35 @@ internal sealed class MidiComposer : IMidiComposer
 
                 var degree = MelodyDegree(
                     step,
-                    (int)((unchecked((uint)plan.VariationSeed) >> 14) % 4),
-                    motifOffset,
+                    motifVariant,
+                    motifOffset + phraseTranspose,
                     section.Type,
                     random);
+                // The middle of the phrase answers the theme with a restrained contour change.
+                if (phraseBar == 1 && step % 4 != 0 && random.Next(0, 3) == 0)
+                {
+                    degree += random.Next(0, 2) == 0 ? 1 : -1;
+                }
+                else if (phraseBar == 2 && step % 4 != 0 && random.Next(0, 4) == 0)
+                {
+                    degree += random.Next(0, 2) == 0 ? 2 : -2;
+                }
+
                 if (step % 4 == 0)
                 {
                     degree = MoveToChordTone(degree, barChord, key, scale);
                 }
                 var octave = plan.InstrumentSet is "cinematic" or "ambient" ? 1 : 0;
                 var note = scale.GetMidiNote(key.RootPitchClass, degree, octaveOffset: octave);
+                // Avoid mechanical repeated pitches while keeping every note in the chosen scale.
+                if (note == previousNote)
+                {
+                    var direction = (bar + step + unchecked((uint)plan.VariationSeed)) % 2 == 0 ? 1 : -1;
+                    degree += direction;
+                    note = scale.GetMidiNote(key.RootPitchClass, degree, octaveOffset: octave);
+                }
+
+                previousNote = note;
                 var velocity = ScaleVelocity(68 + random.Next(0, 18), intensity);
                 var start = Math.Max(0, barStart + (step * EighthNoteTicks) +
                     GroovePocketOffset(plan.Groove, plan.VariationSeed, bar, step, role: 3));
@@ -567,8 +599,10 @@ internal sealed class MidiComposer : IMidiComposer
             pattern = pattern.Concat([1, 5, 7]).Distinct().Order().ToArray();
         }
 
-        var shift = (int)((bar + (uint)seed) % pattern.Length);
-        return pattern.Skip(shift).Concat(pattern.Take(shift)).ToArray();
+        // Rotate note positions through the bar; rotating only the array order left the
+        // actual rhythm unchanged and made long pieces feel like the same loop.
+        var shift = (int)((bar * 3 + (uint)seed) % 8);
+        return pattern.Select(step => (step + shift) % 8).Distinct().Order().ToArray();
     }
 
     private static int MelodyDegree(

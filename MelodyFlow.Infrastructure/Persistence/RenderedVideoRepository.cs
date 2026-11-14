@@ -12,16 +12,21 @@ public sealed class RenderedVideoRepository(MelodyFlowDbContext dbContext) : IRe
     private const string RenderJobIndexName = "ux_rendered_videos_render_job_id";
 
     public Task<RenderedVideo?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        dbContext.RenderedVideos.AsNoTracking().SingleOrDefaultAsync(video => video.Id == id, cancellationToken);
+        dbContext.RenderedVideos.AsNoTracking()
+            .Include(video => video.MusicTracks.OrderBy(track => track.SequenceNumber))
+            .SingleOrDefaultAsync(video => video.Id == id, cancellationToken);
 
     public Task<RenderedVideo?> GetByRenderJobIdAsync(Guid renderJobId, CancellationToken cancellationToken) =>
-        dbContext.RenderedVideos.AsNoTracking().SingleOrDefaultAsync(video => video.RenderJobId == renderJobId, cancellationToken);
+        dbContext.RenderedVideos.AsNoTracking()
+            .Include(video => video.MusicTracks.OrderBy(track => track.SequenceNumber))
+            .SingleOrDefaultAsync(video => video.RenderJobId == renderJobId, cancellationToken);
 
     public async Task<RenderedVideoPage> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken)
     {
         var totalCount = await dbContext.RenderedVideos.CountAsync(cancellationToken);
         var offset = checked((page - 1) * pageSize);
         var items = await dbContext.RenderedVideos.AsNoTracking()
+            .Include(video => video.MusicTracks.OrderBy(track => track.SequenceNumber))
             .OrderByDescending(video => video.CreatedAt)
             .ThenBy(video => video.Id)
             .Skip(offset)

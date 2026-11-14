@@ -17,6 +17,20 @@ public sealed class MusicTrackRepository(MelodyFlowDbContext dbContext) : IMusic
     public Task<MusicTrack?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.MusicTracks.AsNoTracking().SingleOrDefaultAsync(track => track.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<MusicTrack>> GetByIdsAsync(
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        return await dbContext.MusicTracks.AsNoTracking()
+            .Where(track => ids.Contains(track.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<MusicTrack?> GetByGenerationJobIdAsync(Guid generationJobId, CancellationToken cancellationToken) =>
         dbContext.MusicTracks.AsNoTracking().SingleOrDefaultAsync(
             track => track.GenerationJobId == generationJobId,
@@ -45,8 +59,9 @@ public sealed class MusicTrackRepository(MelodyFlowDbContext dbContext) : IMusic
             return new DeleteResourceResult(DeleteResourceOutcome.NotFound);
         }
 
-        if (await dbContext.RenderedVideos.AnyAsync(video => video.MusicTrackId == id, cancellationToken) ||
-            await HasActiveRenderReferenceAsync("musicTrackId", id, cancellationToken))
+        if (await dbContext.RenderedVideoTracks.AnyAsync(item => item.MusicTrackId == id, cancellationToken) ||
+            await dbContext.RenderedVideos.AnyAsync(video => video.MusicTrackId == id, cancellationToken) ||
+            await HasActiveRenderReferenceAsync(id, cancellationToken))
         {
             return new DeleteResourceResult(DeleteResourceOutcome.InUse);
         }
@@ -56,10 +71,7 @@ public sealed class MusicTrackRepository(MelodyFlowDbContext dbContext) : IMusic
         return new DeleteResourceResult(DeleteResourceOutcome.Deleted, track.StorageKey);
     }
 
-    private async Task<bool> HasActiveRenderReferenceAsync(
-        string propertyName,
-        Guid resourceId,
-        CancellationToken cancellationToken)
+    private async Task<bool> HasActiveRenderReferenceAsync(Guid resourceId, CancellationToken cancellationToken)
     {
         var activeStatuses = new[]
         {
@@ -77,10 +89,19 @@ public sealed class MusicTrackRepository(MelodyFlowDbContext dbContext) : IMusic
         return parameters.Any(json =>
         {
             using var document = JsonDocument.Parse(json);
-            return document.RootElement.TryGetProperty(propertyName, out var value) &&
-                value.ValueKind == JsonValueKind.String &&
-                Guid.TryParse(value.GetString(), out var referencedId) &&
-                referencedId == resourceId;
+            var root = document.RootElement;
+            if (root.TryGetProperty("musicTrackIds", out var trackIds) &&
+                trackIds.ValueKind == JsonValueKind.Array &&
+                trackIds.EnumerateArray().Any(value => value.ValueKind == JsonValueKind.String &&
+                    Guid.TryParse(value.GetString(), out var parsedId) && parsedId == resourceId))
+            {
+                return true;
+            }
+
+            return root.TryGetProperty("musicTrackId", out var legacyTrackId) &&
+                legacyTrackId.ValueKind == JsonValueKind.String &&
+                Guid.TryParse(legacyTrackId.GetString(), out var legacyId) &&
+                legacyId == resourceId;
         });
     }
 

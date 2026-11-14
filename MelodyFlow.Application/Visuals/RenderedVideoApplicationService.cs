@@ -19,8 +19,9 @@ public sealed class RenderedVideoApplicationService(
 {
     public async Task<CreateVideoRenderResult> CreateAsync(
         Guid projectId,
-        Guid musicTrackId,
+        IReadOnlyList<Guid> musicTrackIds,
         Guid visualAssetId,
+        int? targetDurationSeconds,
         string? title,
         string? idempotencyKey,
         CancellationToken cancellationToken)
@@ -30,21 +31,51 @@ public sealed class RenderedVideoApplicationService(
             throw new ArgumentException($"Video title cannot exceed {RenderedVideo.MaxTitleLength} characters.", nameof(title));
         }
 
+        if (musicTrackIds.Count is < 1 or > RenderedVideo.MaxMusicTrackCount ||
+            musicTrackIds.Any(id => id == Guid.Empty) ||
+            musicTrackIds.Distinct().Count() != musicTrackIds.Count)
+        {
+            throw new ArgumentException("Select between 1 and 20 distinct music tracks.", nameof(musicTrackIds));
+        }
+
+        var loadedTracks = await tracks.GetByIdsAsync(musicTrackIds, cancellationToken);
+        var tracksById = loadedTracks.ToDictionary(track => track.Id);
+        if (tracksById.Count != musicTrackIds.Count)
+        {
+            return new CreateVideoRenderResult(null, CreateVideoRenderOutcome.TrackNotFound);
+        }
+
+        var orderedTracks = musicTrackIds.Select(id => tracksById[id]).ToArray();
+        if (orderedTracks[0].MusicProjectId != projectId)
+        {
+            return new CreateVideoRenderResult(null, CreateVideoRenderOutcome.TrackNotInProject);
+        }
+
         var project = await projects.GetByIdAsync(projectId, cancellationToken);
         if (project is null)
         {
             return new CreateVideoRenderResult(null, CreateVideoRenderOutcome.ProjectNotFound);
         }
 
-        var track = await tracks.GetByIdAsync(musicTrackId, cancellationToken);
-        if (track is null || !await storage.ExistsAsync(track.StorageKey, cancellationToken))
+        foreach (var track in orderedTracks)
         {
-            return new CreateVideoRenderResult(null, CreateVideoRenderOutcome.TrackNotFound);
+            if (track.DurationMs is not > 0 || !await storage.ExistsAsync(track.StorageKey, cancellationToken))
+            {
+                return new CreateVideoRenderResult(null, CreateVideoRenderOutcome.TrackNotFound);
+            }
+
+            if (track.DurationMs < 15_000)
+            {
+                throw new ArgumentException("Each song must be at least 15 seconds long to create a video playlist.", nameof(musicTrackIds));
+            }
         }
 
-        if (track.MusicProjectId != project.Id)
+        var resolvedDurationSeconds = targetDurationSeconds ?? (int)Math.Min(
+            7_200,
+            Math.Ceiling(orderedTracks.Sum(track => track.DurationMs!.Value) / 1_000d));
+        if (resolvedDurationSeconds is < 1 or > 7_200)
         {
-            return new CreateVideoRenderResult(null, CreateVideoRenderOutcome.TrackNotInProject);
+            throw new ArgumentOutOfRangeException(nameof(targetDurationSeconds), "Video duration must be between 1 second and 2 hours.");
         }
 
         var visual = await assets.GetByIdAsync(visualAssetId, cancellationToken);
@@ -53,18 +84,14 @@ public sealed class RenderedVideoApplicationService(
             return new CreateVideoRenderResult(null, CreateVideoRenderOutcome.VisualAssetNotFound);
         }
 
-        if (track.DurationMs is not > 0 || track.DurationMs > 1_800_000)
-        {
-            throw new ArgumentException("Video rendering supports music tracks up to 30 minutes with a measured duration.");
-        }
-
         var resolvedTitle = string.IsNullOrWhiteSpace(title)
-            ? RenderedVideoTitleGenerator.Generate(track.Title, project.Genre, project.Mood)
+            ? RenderedVideoTitleGenerator.Generate(orderedTracks[0].Title, project.Genre, project.Mood)
             : title.Trim();
         var parameters = JsonSerializer.Serialize(new
         {
-            musicTrackId,
+            musicTrackIds,
             visualAssetId,
+            targetDurationSeconds = resolvedDurationSeconds,
             title = resolvedTitle
         });
         var result = await jobs.CreateAsync(projectId, JobType.Render, parameters, idempotencyKey, cancellationToken);

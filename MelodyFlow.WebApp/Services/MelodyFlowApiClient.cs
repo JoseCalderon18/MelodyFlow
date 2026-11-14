@@ -193,16 +193,18 @@ public sealed class MelodyFlowApiClient(HttpClient httpClient)
 
     public async Task<GenerationJobResponse> CreateRenderedVideoAsync(
         Guid projectId,
-        Guid trackId,
+        IReadOnlyList<Guid> trackIds,
         Guid visualAssetId,
+        int targetDurationSeconds,
         string? title,
         CancellationToken cancellationToken)
     {
         var request = new CreateRenderedVideoRequest
         {
             MusicProjectId = projectId,
-            MusicTrackId = trackId,
+            MusicTrackIds = trackIds,
             VisualAssetId = visualAssetId,
+            TargetDurationSeconds = targetDurationSeconds,
             Title = title
         };
         using var response = await httpClient.PostAsJsonAsync("api/v1/rendered-videos", request, cancellationToken);

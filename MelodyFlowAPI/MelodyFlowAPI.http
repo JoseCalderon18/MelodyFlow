@@ -1,6 +1,9 @@
 @MelodyFlowApiHostAddress = http://localhost:5032
 @projectId = 00000000-0000-0000-0000-000000000001
 @jobId = 00000000-0000-0000-0000-000000000002
+@trackOneId = 00000000-0000-0000-0000-000000000003
+@trackTwoId = 00000000-0000-0000-0000-000000000004
+@visualAssetId = 00000000-0000-0000-0000-000000000005
 
 ### Comprobar que la API alcanza PostgreSQL
 GET {{MelodyFlowApiHostAddress}}/api/health
@@ -37,3 +40,16 @@ Accept: application/json
 ### Solicitar cancelación
 POST {{MelodyFlowApiHostAddress}}/api/v1/generation-jobs/{{jobId}}/cancellation
 Accept: application/json
+
+### Encolar un videoclip de prueba con dos canciones y 10 minutos
+### Requiere aplicar AddRenderedVideoTracks a la base antes de usarlo.
+POST {{MelodyFlowApiHostAddress}}/api/v1/rendered-videos
+Content-Type: application/json
+Idempotency-Key: local-test-playlist-001
+
+{
+  "musicProjectId": "{{projectId}}",
+  "musicTrackIds": ["{{trackOneId}}", "{{trackTwoId}}"],
+  "visualAssetId": "{{visualAssetId}}",
+  "targetDurationSeconds": 600
+}

@@ -8,6 +8,7 @@ public interface IMusicTrackRepository
 {
     /// <summary>Busca una canción por su clave primaria.</summary>
     Task<MusicTrack?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<IReadOnlyList<MusicTrack>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
 
     /// <summary>Busca la canción producida por un trabajo concreto.</summary>
     Task<MusicTrack?> GetByGenerationJobIdAsync(Guid generationJobId, CancellationToken cancellationToken);

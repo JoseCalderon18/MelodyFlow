@@ -7,6 +7,7 @@ public sealed class RenderedVideo
     public const int MaxStorageKeyLength = 1_024;
     public const int MaxCodecLength = 40;
     public const int MaxContainerLength = 16;
+    public const int MaxMusicTrackCount = 20;
 
     private RenderedVideo()
     {
@@ -23,7 +24,8 @@ public sealed class RenderedVideo
         int widthPx,
         int heightPx,
         string codec,
-        long fileSizeBytes)
+        long fileSizeBytes,
+        IReadOnlyList<Guid>? musicTrackIds = null)
     {
         if (musicProjectId == Guid.Empty || renderJobId == Guid.Empty || visualAssetId == Guid.Empty || musicTrackId == Guid.Empty)
         {
@@ -35,6 +37,18 @@ public sealed class RenderedVideo
         RenderJobId = renderJobId;
         VisualAssetId = visualAssetId;
         MusicTrackId = musicTrackId;
+        var selectedTrackIds = musicTrackIds ?? [musicTrackId];
+        if (selectedTrackIds.Count is < 1 or > MaxMusicTrackCount ||
+            selectedTrackIds[0] != musicTrackId ||
+            selectedTrackIds.Any(trackId => trackId == Guid.Empty) ||
+            selectedTrackIds.Distinct().Count() != selectedTrackIds.Count)
+        {
+            throw new ArgumentException("A video must contain 1 to 20 distinct music tracks in playback order.", nameof(musicTrackIds));
+        }
+
+        MusicTracks = selectedTrackIds
+            .Select((trackId, index) => new RenderedVideoTrack(Id, trackId, index))
+            .ToList();
         Title = RequiredText(title, nameof(title), MaxTitleLength);
         StorageKey = ValidateStorageKey(storageKey);
         DurationMs = Positive(durationMs, nameof(durationMs));
@@ -50,7 +64,9 @@ public sealed class RenderedVideo
     public Guid MusicProjectId { get; private set; }
     public Guid RenderJobId { get; private set; }
     public Guid VisualAssetId { get; private set; }
+    /// <summary>First track, retained as a compatibility reference for existing clients and rows.</summary>
     public Guid MusicTrackId { get; private set; }
+    public ICollection<RenderedVideoTrack> MusicTracks { get; private set; } = new List<RenderedVideoTrack>();
     public string Title { get; private set; } = string.Empty;
     public string StorageKey { get; private set; } = string.Empty;
     public long DurationMs { get; private set; }

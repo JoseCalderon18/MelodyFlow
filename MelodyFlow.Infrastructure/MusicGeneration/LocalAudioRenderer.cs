@@ -74,7 +74,10 @@ internal sealed class LocalAudioRenderer(IOptions<MusicGenerationOptions> option
         var inputs = string.Concat(Enumerable.Range(0, stems.Count).Select(index => $"[a{index}]"));
         var mixGraph = string.Join(";", filterParts) + ";" +
             $"{inputs}amix=inputs={stems.Count}:duration=longest:dropout_transition=0:normalize=0," +
-            "alimiter=limit=0.89:attack=5:release=80:level=0," +
+            // Normalize the summed stems to a practical listening level. The previous
+            // peak-only limiter preserved very quiet source stems, so valid MP3s could
+            // sound almost silent after download.
+            "loudnorm=I=-16:TP=-1.5:LRA=11:linear=false," +
             $"afade=t=in:st=0:d={FormatFluidValue(fadeSeconds)}:curve=hsin," +
             $"afade=t=out:st={FormatFluidValue(fadeOutStart)}:d={FormatFluidValue(fadeSeconds)}:curve=hsin[mix]";
         var ffmpegArguments = new List<string>

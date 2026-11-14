@@ -14,6 +14,7 @@ namespace MelodyFlow.WebApp.Components.Pages;
 public partial class Home : IAsyncDisposable
 {
     private const int TrackPageSize = 6;
+    private const int RenderTrackPageSize = 100;
     private const int ProjectPageSize = 5;
     private static readonly TimeSpan JobPollInterval = TimeSpan.FromSeconds(2);
 
@@ -28,6 +29,7 @@ public partial class Home : IAsyncDisposable
 
     private readonly MusicProjectForm form = new();
     private readonly List<MusicTrackResponse> tracks = [];
+    private readonly List<MusicTrackResponse> renderTracks = [];
     private readonly List<VisualAssetResponse> visualAssets = [];
     private readonly List<RenderedVideoResponse> renderedVideos = [];
     private readonly CancellationTokenSource componentLifetime = new();
@@ -36,18 +38,22 @@ public partial class Home : IAsyncDisposable
     private GenerationJobResponse? job;
     private MusicTrackResponse? track;
     private RenderedVideoResponse? renderedVideo;
-    private Guid? selectedMusicTrackId;
+    private readonly List<Guid> selectedMusicTrackIds = [];
     private Guid? selectedVisualAssetId;
+    private int videoDurationMinutes = 10;
     private string videoTitle = string.Empty;
     private string providerName = "Google Flow";
     private int trackCount;
+    private int renderTrackCount;
     private int projectCount;
     private int visualAssetCount;
     private int renderedVideoCount;
     private int trackPage = 1;
+    private int renderTrackPage = 1;
     private int projectPage = 1;
     private bool loadingDashboard = true;
     private bool loadingTracks;
+    private bool loadingRenderTracks;
     private bool loadingProjects;
     private bool loadingMedia;
     private bool uploadingClip;
@@ -97,18 +103,20 @@ public partial class Home : IAsyncDisposable
         try
         {
             var trackRequest = Api.GetMusicTracksAsync(1, TrackPageSize, CancellationToken.None);
+            var renderTrackRequest = Api.GetMusicTracksAsync(1, RenderTrackPageSize, CancellationToken.None);
             var projectRequest = Api.GetProjectsAsync(1, ProjectPageSize, CancellationToken.None);
-            await Task.WhenAll(trackRequest, projectRequest);
+            await Task.WhenAll(trackRequest, renderTrackRequest, projectRequest);
 
             var trackPageResult = await trackRequest;
             tracks.Clear();
             tracks.AddRange(trackPageResult.Items);
             trackCount = trackPageResult.TotalCount;
             trackPage = 1;
-            if (selectedMusicTrackId is null && tracks.Count > 0)
-            {
-                selectedMusicTrackId = tracks[0].Id;
-            }
+            var renderTrackPageResult = await renderTrackRequest;
+            renderTracks.Clear();
+            renderTracks.AddRange(renderTrackPageResult.Items);
+            renderTrackCount = renderTrackPageResult.TotalCount;
+            renderTrackPage = 1;
             var projectPageResult = await projectRequest;
             projects = projectPageResult.Items.ToList();
             projectCount = projectPageResult.TotalCount;
@@ -232,6 +240,36 @@ public partial class Home : IAsyncDisposable
         finally
         {
             loadingTracks = false;
+        }
+    }
+
+    private async Task LoadMoreRenderTracksAsync()
+    {
+        if (loadingRenderTracks || renderTracks.Count >= renderTrackCount)
+        {
+            return;
+        }
+
+        loadingRenderTracks = true;
+        mediaError = null;
+        try
+        {
+            var nextPage = await Api.GetMusicTracksAsync(renderTrackPage + 1, RenderTrackPageSize, CancellationToken.None);
+            renderTracks.AddRange(nextPage.Items);
+            renderTrackPage = nextPage.Page;
+            renderTrackCount = nextPage.TotalCount;
+        }
+        catch (ApiResponseException exception)
+        {
+            mediaError = $"No se pudieron cargar más canciones (HTTP {(int)exception.StatusCode}): {exception.Message}";
+        }
+        catch (HttpRequestException)
+        {
+            mediaError = "No se pudieron cargar más canciones desde la API.";
+        }
+        finally
+        {
+            loadingRenderTracks = false;
         }
     }
 
@@ -404,11 +442,10 @@ public partial class Home : IAsyncDisposable
         {
             var warning = await Api.DeleteMusicTrackAsync(item.Id, CancellationToken.None);
             tracks.Remove(item);
+            renderTracks.Remove(item);
             trackCount = Math.Max(0, trackCount - 1);
-            if (selectedMusicTrackId == item.Id)
-            {
-                selectedMusicTrackId = null;
-            }
+            renderTrackCount = Math.Max(0, renderTrackCount - 1);
+            selectedMusicTrackIds.Remove(item.Id);
 
             if (track?.Id == item.Id)
             {
@@ -504,16 +541,16 @@ public partial class Home : IAsyncDisposable
     private async Task CreateVideoRenderAsync()
     {
         mediaError = null;
-        if (selectedMusicTrackId is not Guid trackId || selectedVisualAssetId is not Guid visualId)
+        if (selectedMusicTrackIds.Count == 0 || selectedVisualAssetId is not Guid visualId)
         {
-            mediaError = "Selecciona una canción y un clip MP4.";
+            mediaError = "Selecciona al menos una canción y un clip MP4.";
             return;
         }
 
-        var selectedTrack = tracks.FirstOrDefault(item => item.Id == trackId);
+        var selectedTrack = renderTracks.FirstOrDefault(item => item.Id == selectedMusicTrackIds[0]);
         if (selectedTrack?.MusicProjectId is not Guid projectId)
         {
-            mediaError = "La canción seleccionada no tiene un proyecto de origen para guardar el videoclip.";
+            mediaError = "La primera canción seleccionada no tiene un proyecto de origen.";
             return;
         }
 
@@ -525,8 +562,9 @@ public partial class Home : IAsyncDisposable
         {
             job = await Api.CreateRenderedVideoAsync(
                 projectId,
-                trackId,
+                selectedMusicTrackIds,
                 visualId,
+                videoDurationMinutes * 60,
                 string.IsNullOrWhiteSpace(videoTitle) ? null : videoTitle,
                 CancellationToken.None);
             videoTitle = string.Empty;
@@ -545,6 +583,44 @@ public partial class Home : IAsyncDisposable
             renderingVideo = false;
         }
     }
+
+    private void ToggleVideoTrack(Guid trackId, ChangeEventArgs args)
+    {
+        mediaError = null;
+        var isSelected = args.Value is bool value && value;
+        if (isSelected)
+        {
+            if (selectedMusicTrackIds.Count >= RenderedVideoSelectionLimit)
+            {
+                mediaError = $"Puedes combinar hasta {RenderedVideoSelectionLimit} canciones en un videoclip.";
+                return;
+            }
+
+            if (!selectedMusicTrackIds.Contains(trackId))
+            {
+                selectedMusicTrackIds.Add(trackId);
+            }
+        }
+        else
+        {
+            selectedMusicTrackIds.Remove(trackId);
+        }
+    }
+
+    private void MoveVideoTrack(Guid trackId, int direction)
+    {
+        var currentIndex = selectedMusicTrackIds.IndexOf(trackId);
+        var nextIndex = currentIndex + direction;
+        if (currentIndex < 0 || nextIndex < 0 || nextIndex >= selectedMusicTrackIds.Count)
+        {
+            return;
+        }
+
+        selectedMusicTrackIds.RemoveAt(currentIndex);
+        selectedMusicTrackIds.Insert(nextIndex, trackId);
+    }
+
+    private const int RenderedVideoSelectionLimit = 20;
 
     private void StartProgressPolling(Guid jobId) =>
         jobPollingTask = PollJobUntilTerminalAsync(jobId, componentLifetime.Token);
@@ -704,7 +780,7 @@ public partial class Home : IAsyncDisposable
         public double LeadPan { get; set; }
         public double DrumsPan { get; set; }
 
-        [Range(1, 4800)]
+        [Range(1, 3_600)]
         public int TargetDurationSeconds { get; set; } = 60;
 
         public bool UseAI { get; set; }
