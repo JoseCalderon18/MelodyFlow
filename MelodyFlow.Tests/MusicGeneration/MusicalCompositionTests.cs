@@ -57,6 +57,18 @@ public sealed class MusicalCompositionTests
     }
 
     [Fact]
+    public void RomanticMoodUsesWarmAabaStyleAndRomanticScaleOptions()
+    {
+        var project = new MusicProject("Romantic pop", "pop", 60, "romántica");
+        var style = ArrangementStyleCatalog.ForProject(project, seed: 2);
+
+        Assert.Equal("warm", style.MixProfile);
+        Assert.Equal("aaba", style.Form);
+        Assert.Contains("aeolian", MusicalScaleCatalog.SelectFor(project.Genre, project.Mood));
+        Assert.Contains("harmonic-minor", MusicalScaleCatalog.SelectFor(project.Genre, project.Mood));
+    }
+
+    [Fact]
     public void CatalogProvides108RootAndScaleCombinations()
     {
         Assert.Equal(9, MusicalScaleCatalog.All.Count);

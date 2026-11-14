@@ -107,16 +107,17 @@ internal static class ArrangementStyleCatalog
         };
 
         var mood = project.Mood?.ToLowerInvariant() ?? string.Empty;
+        var romanticMood = ContainsAny(mood, "romantic", "romántic", "romance", "love", "amor", "ballad", "balada");
         var density = request?.TextureDensity ??
             (ContainsAny(mood, "sleep", "meditation", "calm", "tranquil", "focus", "relax")
                 ? (variant == 2 ? "balanced" : "sparse")
                 : variant == 0 ? style.TextureDensity : variant == 1 ? "balanced" : "layered");
-        var mixProfile = request?.MixProfile ?? style.MixProfile;
+        var mixProfile = request?.MixProfile ?? (romanticMood ? "warm" : style.MixProfile);
 
         return style with
         {
             Groove = request?.PreferredGroove ?? alternateGrooves[variant % alternateGrooves.Length],
-            Form = request?.PreferredForm ?? alternateForms[variant % alternateForms.Length],
+            Form = request?.PreferredForm ?? (romanticMood ? "aaba" : alternateForms[variant % alternateForms.Length]),
             TextureDensity = density,
             MixProfile = mixProfile
         };
