@@ -191,9 +191,10 @@ public sealed class GenerationQueueWorker(
         catch (Exception exception)
         {
             logger.LogError(
-                "Job {JobId} failed with {ExceptionType}.",
+                "Job {JobId} failed with {ExceptionType}. Stack trace: {StackTrace}",
                 claim.Job.Id,
-                exception.GetType().Name);
+                exception.GetType().Name,
+                exception.StackTrace);
             await RecordFailureAsync(
                 claim,
                 "worker_unexpected_error",

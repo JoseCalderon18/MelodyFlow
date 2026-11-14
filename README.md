@@ -1,6 +1,6 @@
 # MelodyFlow
 
-> **Status — local music/video studio:** Music projects accept durations from 30 seconds through 1 hour. The Worker defaults to deterministic C# composition, varies melody rhythm and phrases, and loudness-normalizes the final MP3. The WebApp supports manual MP4 imports and video playlists of up to 20 songs, with crossfades and a selectable final length up to 2 hours; the clip loops to match. A new migration adds ordered song links for multi-track renders; it is generated but has not yet been applied to PostgreSQL. Existing MP3s are not rewritten automatically. This is a practical offline stem mixer, not a full DAW or mastering suite.
+> **Status — local music/video studio:** Music projects accept durations from 30 seconds through 1 hour. The Worker defaults to deterministic C# composition, varies melody rhythm and phrases, and loudness-normalizes the final MP3. The WebApp supports manual MP4 imports and video playlists of up to 20 songs, with crossfades and a selectable final length up to 2 hours; the clip loops to match. `AddRenderedVideoTracks` is applied to the current local PostgreSQL database and backfills existing renders. Existing MP3s are not rewritten automatically. This is a practical offline stem mixer, not a full DAW or mastering suite.
 
 MelodyFlow is a C#/.NET 10 music composition and video production platform. By default, deterministic C# rules choose musical arrangements; an optional AI planner can propose them when selected per job. The MIDI composer creates notes, FluidSynth renders audio from a SoundFont, FFmpeg encodes media, and a background Worker runs jobs. It is **not** an AI audio-generation model. YouTube publication is a later optional module.
 
@@ -45,7 +45,7 @@ MelodyFlow is a C#/.NET 10 music composition and video production platform. By d
 
 .NET 10 SDK, Visual Studio 2026, Docker Desktop, PostgreSQL, FluidSynth, FFmpeg/FFprobe, and a locally obtained SoundFont with its license notice. LM Studio and a loaded model are optional unless `useAI` is enabled. Keep local binaries and credentials out of Git.
 
-Configure PostgreSQL, media storage, temporary files, audio tools and the optional local planner through each app's local launch profile. Keep machine-specific paths, credentials and internal setup notes out of the public repository. The first five migrations are applied to the current local database. Review and apply `AddRenderedVideoTracks` before using multi-song video renders.
+Configure PostgreSQL, media storage, temporary files, audio tools and the optional local planner through each app's local launch profile. Keep machine-specific paths, credentials and internal setup notes out of the public repository. The first six migrations, including `AddRenderedVideoTracks`, are applied to the current local database. Verify migration history before updating another database.
 
 ## Where to start
 

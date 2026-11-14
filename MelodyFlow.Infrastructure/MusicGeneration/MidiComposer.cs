@@ -50,12 +50,14 @@ internal sealed class MidiComposer : IMidiComposer
             throw new ArgumentOutOfRangeException(nameof(targetDurationSeconds));
         }
 
-        if (!MusicKey.TryParse(plan.Key, out var key) ||
+        if (plan.TempoBpm is < 50 or > 180 ||
+            plan.Chords is null || plan.Chords.Count is < 1 or > 16 ||
+            !MusicKey.TryParse(plan.Key, out var key) ||
             !MusicalScaleCatalog.TryGet(plan.Scale, out var scale) ||
             !ArrangementStyleCatalog.IsSupportedGroove(plan.Groove) ||
             !ArrangementStyleCatalog.IsSupportedInstrumentSet(plan.InstrumentSet))
         {
-            throw new InvalidDataException("The arrangement contains unsupported musical settings.");
+            throw new InvalidDataException("The arrangement contains invalid tempo, chords, scale, groove, or instrument settings.");
         }
 
         var targetTicks = (long)Math.Ceiling(
