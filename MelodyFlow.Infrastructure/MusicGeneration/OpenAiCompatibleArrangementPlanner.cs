@@ -17,6 +17,17 @@ internal sealed class OpenAiCompatibleArrangementPlanner(
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    internal const string SystemPrompt =
+        "You are a harmony and arrangement planner. Return one JSON object only. Follow this exact schema: " +
+        "{\"schemaVersion\":1,\"tempoBpm\":96,\"key\":\"A minor\",\"scale\":\"aeolian\",\"groove\":\"lofi\",\"instrumentSet\":\"lofi\",\"form\":\"aaba\",\"textureDensity\":\"balanced\",\"mixProfile\":\"warm\",\"paletteVariant\":1,\"chords\":[\"Am7\",\"Fmaj7\",\"Cmaj7\",\"G7\",\"Am7\",\"G7\",\"Fmaj7\",\"Em7\",\"Dm7\",\"Fmaj7\",\"G7\",\"Cmaj7\",\"Am7\",\"Dm7\",\"Fmaj7\",\"Am7\"],\"variationSeed\":123}. " +
+        "Use a tempo from 50 to 180 BPM and a supported major/minor tonal center. Return exactly 16 chord symbols as four consecutive, distinct four-chord phrases, one chord per measure. Shape them as theme, theme development, contrasting variation, and bridge/response; do not repeat any four-chord block verbatim. Keep each phrase compatible with the selected scale, use connected voice leading, chord tones on strong melody beats, and clear phrase endings that return toward the tonic. " +
+        "Supported seven-note scales: ionian, dorian, phrygian, lydian, mixolydian, aeolian, locrian, harmonic-minor, melodic-minor. " +
+        "Supported grooves: ambient, lofi, backbeat, four-on-floor, cinematic, pulse, arpeggiated, shuffle, swing, broken-beat, clave, dembow, bossa, trap, disco. " +
+        "Supported forms: evolving-arc, aaba, build-break-return, cinematic-arc, steady-groove. " +
+        "Supported textureDensity: sparse, balanced, layered. Supported mixProfile: intimate, balanced, spacious, warm. paletteVariant must be between 0 and 7. " +
+        "Supported instrumentSet values: ambient, lofi, pop, electronic, cinematic, rock, acoustic. Choose form, groove, density, mix and palette to fit the supplied genre and mood. " +
+        "Supported chord suffixes are empty, maj, m, min, dim, aug, sus2, sus4, 7, maj7, m7, min7, m7b5, dim7, 6, m6, maj9, m9, 9, mMaj7.";
+
     public async Task<ArrangementPlan> CreatePlanAsync(
         MusicProject project,
         MusicGenerationRequest requestOptions,
@@ -44,16 +55,7 @@ internal sealed class OpenAiCompatibleArrangementPlanner(
                 new
                 {
                     role = "system",
-                    content = "You are a harmony and arrangement planner. Return one JSON object only. Follow this exact schema: " +
-                        "{\"schemaVersion\":1,\"tempoBpm\":96,\"key\":\"A minor\",\"scale\":\"dorian\",\"groove\":\"lofi\",\"instrumentSet\":\"lofi\",\"form\":\"aaba\",\"textureDensity\":\"balanced\",\"mixProfile\":\"warm\",\"paletteVariant\":1,\"chords\":[\"Am7\",\"Dm9\",\"G7\",\"Em7\"],\"variationSeed\":123}. " +
-                        "Use a tempo from 50 to 180 BPM, a supported major/minor tonal center, and 4 to 16 chord symbols. " +
-                        "Supported seven-note scales: ionian, dorian, phrygian, lydian, mixolydian, aeolian, locrian, harmonic-minor, melodic-minor. " +
-                        "Supported grooves: ambient, lofi, backbeat, four-on-floor, cinematic, pulse, arpeggiated, shuffle, swing, broken-beat, clave, dembow, bossa, trap, disco. " +
-                        "Supported forms: evolving-arc, aaba, build-break-return, cinematic-arc, steady-groove. " +
-                        "Supported textureDensity: sparse, balanced, layered. Supported mixProfile: intimate, balanced, spacious, warm. paletteVariant must be between 0 and 7. " +
-                        "Supported instrumentSet values: ambient, lofi, pop, electronic, cinematic, rock, acoustic. " +
-                        "Choose a form, groove, chord progression, density, mix and palette that fit the supplied genre and mood. Use connected voice leading, clear phrase endings, chord tones on strong melody beats, and avoid reusing the same pattern throughout the whole track. " +
-                        "Supported chord suffixes are empty, maj, m, min, dim, aug, sus2, sus4, 7, maj7, m7, min7, m7b5, dim7, 6, m6, maj9, m9, 9, mMaj7."
+                    content = SystemPrompt
                 },
                 new
                 {

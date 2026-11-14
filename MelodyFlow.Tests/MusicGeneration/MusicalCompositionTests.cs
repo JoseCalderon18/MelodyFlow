@@ -49,6 +49,14 @@ public sealed class MusicalCompositionTests
     }
 
     [Fact]
+    public void AiPlannerPromptRequestsFourDistinctHarmonicPhrases()
+    {
+        Assert.Contains("exactly 16 chord symbols", OpenAiCompatibleArrangementPlanner.SystemPrompt);
+        Assert.Contains("four consecutive, distinct four-chord phrases", OpenAiCompatibleArrangementPlanner.SystemPrompt);
+        Assert.Contains("do not repeat any four-chord block verbatim", OpenAiCompatibleArrangementPlanner.SystemPrompt);
+    }
+
+    [Fact]
     public void CatalogProvides108RootAndScaleCombinations()
     {
         Assert.Equal(9, MusicalScaleCatalog.All.Count);
